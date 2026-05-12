@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FCA Automation Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-light: #334155;
+    --border: #475569;
+    --text: #f1f5f9;
+    --text-dim: #94a3b8;
+    --accent: #f97316;
+    --accent-hover: #ea580c;
+    --success: #22c55e;
+    --error: #ef4444;
+    --warning: #eab308;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    min-height: 100vh;
+  }
+  /* Sidebar */
+  aside {
+    width: 240px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    flex-shrink: 0;
+  }
+  aside h1 {
+    font-size: 18px;
+    margin-bottom: 4px;
+    color: var(--accent);
+  }
+  aside .tag {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 28px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  nav button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 4px;
+    font-size: 14px;
+    transition: background 0.15s;
+  }
+  nav button:hover { background: var(--panel-light); }
+  nav button.active {
+    background: var(--accent);
+    color: white;
+    font-weight: 600;
+  }
+  /* Main */
+  main {
+    flex: 1;
+    padding: 32px 40px;
+    max-width: 1100px;
+  }
+  main h2 {
+    font-size: 24px;
+    margin-bottom: 4px;
+  }
+  main .subtitle {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+  .tool { display: none; }
+  .tool.active { display: block; }
+  /* Steps */
+  .step {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .step-number {
+    width: 26px;
+    height: 26px;
+    background: var(--accent);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .step-title {
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .step-desc {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+  /* Inputs */
+  textarea, input[type="text"], select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+  }
+  textarea {
+    min-height: 180px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 13px;
+    resize: vertical;
+  }
+  textarea:focus, input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  /* Drop zones */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(249, 115, 22, 0.05);
+  }
+  .drop-zone p { color: var(--text-dim); font-size: 13px; }
+  .drop-zone .icon { font-size: 28px; margin-bottom: 6px; }
+  .file-list {
+    margin-top: 10px;
+    font-size: 13px;
+  }
+  .file-list .file-item {
+    background: var(--bg);
+    padding: 6px 10px;
+    border-radius: 4px;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .file-list .file-item .remove {
+    color: var(--error);
+    cursor: pointer;
+    font-size: 16px;
+    background: none;
+    border: none;
+    padding: 0 4px;
+  }
+  /* Buttons */
+  .btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-secondary {
+    background: var(--panel-light);
+  }
+  .btn-secondary:hover:not(:disabled) { background: var(--border); }
+  /* Auth status */
+  .auth-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    font-size: 13px;
+  }
+  .auth-status.signed-in { border-left: 3px solid var(--success); }
+  .auth-status.signed-out { border-left: 3px solid var(--warning); }
+  .auth-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .signed-in .auth-dot { background: var(--success); }
+  .signed-out .auth-dot { background: var(--warning); }
+  /* Log */
+  .log {
+    background: #000;
+    border-radius: 6px;
+    padding: 14px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 12.5px;
+    max-height: 400px;
+    overflow-y: auto;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .log .log-info { color: #93c5fd; }
+  .log .log-success { color: var(--success); }
+  .log .log-error { color: var(--error); }
+  .log .log-warning { color: var(--warning); }
+  .log .log-dim { color: var(--text-dim); }
+  /* Settings */
+  .settings-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .settings-row input { flex: 1; }
+  details.settings {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  details.settings summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-dim);
+    user-select: none;
+  }
+  details.settings .settings-body {
+    margin-top: 12px;
+  }
+  .placeholder-hint {
+    background: var(--bg);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  }
+  .placeholder-hint code {
+    color: var(--accent);
+    background: rgba(249, 115, 22, 0.1);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+  }
+  @media (max-width: 768px) {
+    body { flex-direction: column; }
+    aside { width: 100%; padding: 16px; }
+    main { padding: 20px; }
+    .field-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<aside>
+  <h1>FCA Automation</h1>
+  <div class="tag">Dashboard</div>
+  <nav>
+    <button class="active" data-tool="post-game">Post Game Reports</button>
+    <!-- Add more tools here later -->
+  </nav>
+</aside>
+
+<main>
+  <!-- Post Game Report Tool -->
+  <section id="post-game" class="tool active">
+    <h2>Post Game Report Automation</h2>
+    <p class="subtitle">Create Gmail drafts for each post-game report PDF.</p>
+
+    <!-- Settings -->
+    <details class="settings">
+      <summary>Google API Settings (set once)</summary>
+      <div class="settings-body">
+        <label>Google OAuth Client ID</label>
+        <input type="text" id="clientId" placeholder="xxxxx.apps.googleusercontent.com">
+        <p class="step-desc" style="margin-top:6px;">From your Google Cloud Console → APIs & Services → Credentials. Saved in your browser only.</p>
+      </div>
+    </details>
+
+    <!-- Step 1: Sign In -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">1</div>
+        <div class="step-title">Sign in with Google</div>
+      </div>
+      <div id="authStatus" class="auth-status signed-out">
+        <div class="auth-dot"></div>
+        <span id="authText">Not signed in</span>
+      </div>
+      <button class="btn" id="signInBtn">Sign in with Google</button>
+      <button class="btn btn-secondary" id="signOutBtn" style="display:none;">Sign out</button>
+    </div>
+
+    <!-- Step 2: Email Template -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">2</div>
+        <div class="step-title">Email Template</div>
+      </div>
+      <div class="placeholder-hint">
+        Available placeholders:
+        <code>{{coach_name}}</code>
+        <code>{{opponent}}</code>
+        <code>{{client}}</code>
+        <code>{{gender}}</code>
+        <code>{{state}}</code>
+      </div>
+      <label>Subject</label>
+      <input type="text" id="emailSubject" placeholder="{{opponent}} vs {{client}} — Full Post Game Report">
+      <label style="margin-top:12px;">Body</label>
+      <textarea id="emailTemplate" placeholder="Hi Coach {{coach_name}},&#10;&#10;Attached is the full post game report for your matchup against {{client}}..."></textarea>
+    </div>
+
+    <!-- Step 3: Contacts -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">3</div>
+        <div class="step-title">Contacts File</div>
+      </div>
+      <p class="step-desc">Upload your master Excel file. Tabs should be named like "Wisconsin Girls". Columns required: <code>schools</code>, <code>Position</code>, <code>First Name</code>, <code>Last Name</code>, <code>Email</code>, <code>Rank</code>.</p>
+      <div class="drop-zone" id="contactsDrop">
+        <div class="icon">📊</div>
+        <p><strong>Click or drop</strong> your contacts .xlsx file here</p>
+      </div>
+      <input type="file" id="contactsInput" accept=".xlsx,.xls" hidden>
+      <div class="file-list" id="contactsList"></div>
+    </div>
+
+    <!-- Step 4: PDF Reports -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">4</div>
+        <div class="step-title">Post Game Report PDFs</div>
+      </div>
+      <p class="step-desc">PDF filenames should be like "Arrowhead vs Waukesha West Wolverines.pdf". The opponent is the part before "vs".</p>
+      <div class="drop-zone" id="pdfDrop">
+        <div class="icon">📄</div>
+        <p><strong>Click or drop</strong> PDF files here (you can select many at once)</p>
+      </div>
+      <input type="file" id="pdfInput" accept=".pdf" multiple hidden>
+      <div class="file-list" id="pdfList"></div>
+    </div>
+
+    <!-- Step 5: Run Settings -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">5</div>
+        <div class="step-title">Run Details</div>
+      </div>
+      <div class="field-row">
+        <div>
+          <label>Client School</label>
+          <input type="text" id="client" placeholder="Waukesha West">
+        </div>
+        <div>
+          <label>Gender</label>
+          <select id="gender">
+            <option value="Boys">Boys</option>
+            <option value="Girls">Girls</option>
+          </select>
+        </div>
+        <div>
+          <label>State</label>
+          <input type="text" id="state" placeholder="Wisconsin">
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 6: Run -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">6</div>
+        <div class="step-title">Create Drafts</div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="runBtn" disabled>Create Gmail Drafts</button>
+        <button class="btn btn-secondary" id="clearLogBtn">Clear Log</button>
+      </div>
+      <div class="log" id="log" style="margin-top:14px;"><span class="log-dim">Log output will appear here...</span></div>
+    </div>
+  </section>
+</main>
+
+<script>
+// ─────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────
+const SCOPES = "https://www.googleapis.com/auth/gmail.compose";
+const STRIP_WORDS = [
+  "high school", "preparatory school", "preparatory", "prep school",
+  "prep", "academy", "hs", "school", "senior"
+];
+
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+const state = {
+  accessToken: null,
+  userEmail: null,
+  contactsWorkbook: null,
+  contactsFileName: null,
+  pdfFiles: [],
+  tokenClient: null,
+};
+
+// ─────────────────────────────────────────────
+// PERSISTENCE
+// ─────────────────────────────────────────────
+const SAVED = {
+  load: () => {
+    try { return JSON.parse(localStorage.getItem("fcaSettings") || "{}"); }
+    catch { return {}; }
+  },
+  save: (key, value) => {
+    const s = SAVED.load();
+    s[key] = value;
+    localStorage.setItem("fcaSettings", JSON.stringify(s));
+  }
+};
+
+// ─────────────────────────────────────────────
+// LOG
+// ─────────────────────────────────────────────
+const logEl = document.getElementById("log");
+function log(msg, level = "info") {
+  const span = document.createElement("div");
+  span.className = `log-${level}`;
+  span.textContent = msg;
+  logEl.appendChild(span);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function clearLog() { logEl.innerHTML = ""; }
+
+// ─────────────────────────────────────────────
+// SCHOOL NAME NORMALIZATION
+// ─────────────────────────────────────────────
+function normalizeSchoolName(name) {
+  let n = (name || "").toLowerCase().trim();
+  n = n.replace(/[^a-z0-9\s]/g, "");
+  for (const word of STRIP_WORDS) {
+    const re = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g");
+    n = n.replace(re, "");
+  }
+  return n.replace(/\s+/g, " ").trim();
+}
+
+// ─────────────────────────────────────────────
+// CONTACTS LOADING (from .xlsx)
+// ─────────────────────────────────────────────
+function loadContactsFromWorkbook(workbook, statePart, gender) {
+  const tabName = `${statePart} ${gender}`;
+  log(`📋 Looking up tab: '${tabName}'`, "info");
+
+  const sheet = workbook.Sheets[tabName];
+  if (!sheet) {
+    log(`⚠️  Tab '${tabName}' not found. Available tabs: ${workbook.SheetNames.join(", ")}`, "error");
+    return {};
+  }
+
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  if (!rows.length) {
+    log(`⚠️  No data in tab '${tabName}'.`, "warning");
+    return {};
+  }
+
+  const contacts = {};
+  for (const row of rows) {
+    const school = String(row["schools"] || "").trim();
+    const first = String(row["First Name"] || "").trim();
+    const last = String(row["Last Name"] || "").trim();
+    const email = String(row["Email"] || "").trim();
+    const rank = String(row["Rank"] || "").trim();
+
+    if (!school || !email) continue;
+    if (!rank.toLowerCase().includes("head")) continue;
+
+    const key = normalizeSchoolName(school);
+    const coach = { name: `${first} ${last}`.trim(), email };
+    if (!contacts[key]) contacts[key] = [];
+    contacts[key].push(coach);
+  }
+
+  log(`✅ Loaded coaches for ${Object.keys(contacts).length} schools from '${tabName}'`, "success");
+  return contacts;
+}
+
+// ─────────────────────────────────────────────
+// TEMPLATE FILLING
+// ─────────────────────────────────────────────
+function fillTemplate(subjectTpl, template, coaches, opponent, client, gender, statePart) {
+  let coachGreeting;
+  if (coaches.length === 1) {
+    coachGreeting = coaches[0].name.split(" ").pop();
+  } else {
+    coachGreeting = coaches.map(c => `Coach ${c.name.split(" ").pop()}`).join(" and ");
+  }
+
+  const fill = (s) => s
+    .replaceAll("{{coach_name}}", coachGreeting)
+    .replaceAll("{{opponent}}", opponent)
+    .replaceAll("{{client}}", client)
+    .replaceAll("{{gender}}", gender)
+    .replaceAll("{{state}}", statePart);
+
+  const body = fill(template);
+  const subject = fill(
+    subjectTpl && subjectTpl.trim()
+      ? subjectTpl
+      : `{{opponent}} vs {{client}} — Full Post Game Report`
+  );
+  return { subject, body };
+}
+
+// ─────────────────────────────────────────────
+// EXTRACT OPPONENT FROM FILENAME
+// ─────────────────────────────────────────────
+function extractOpponent(filename) {
+  const name = filename.replace(/\.pdf$/i, "");
+  if (name.includes(" vs ")) return name.split(" vs ")[0].trim();
+  return name.trim();
+}
+
+// ─────────────────────────────────────────────
+// FILE → BASE64
+// ─────────────────────────────────────────────
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      const b64 = result.split(",")[1];
+      resolve(b64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ─────────────────────────────────────────────
+// BUILD RAW MIME EMAIL
+// ─────────────────────────────────────────────
+function buildRawEmail({ from, to, subject, bodyText, bodyHtml, attachment }) {
+  const boundary = "----=_FCA_" + Math.random().toString(36).slice(2);
+  const altBoundary = "----=_ALT_" + Math.random().toString(36).slice(2);
+
+  const lines = [];
+  lines.push(`From: ${from}`);
+  lines.push(`To: ${to.join(", ")}`);
+  lines.push(`Subject: ${subject}`);
+  lines.push("MIME-Version: 1.0");
+  lines.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+  lines.push("");
+  lines.push(`--${boundary}`);
+  lines.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
+  lines.push("");
+  lines.push(`--${altBoundary}`);
+  lines.push("Content-Type: text/plain; charset=UTF-8");
+  lines.push("Content-Transfer-Encoding: 7bit");
+  lines.push("");
+  lines.push(bodyText);
+  lines.push("");
+  lines.push(`--${altBoundary}`);
+  lines.push("Content-Type: text/html; charset=UTF-8");
+  lines.push("Content-Transfer-Encoding: 7bit");
+  lines.push("");
+  lines.push(bodyHtml);
+  lines.push("");
+  lines.push(`--${altBoundary}--`);
+  lines.push("");
+  lines.push(`--${boundary}`);
+  lines.push(`Content-Type: application/pdf; name="${attachment.name}"`);
+  lines.push("Content-Transfer-Encoding: base64");
+  lines.push(`Content-Disposition: attachment; filename="${attachment.name}"`);
+  lines.push("");
+  // Wrap base64 at 76 chars
+  const wrapped = attachment.base64.match(/.{1,76}/g).join("\r\n");
+  lines.push(wrapped);
+  lines.push("");
+  lines.push(`--${boundary}--`);
+
+  const raw = lines.join("\r\n");
+  // Base64URL encode
+  const utf8 = new TextEncoder().encode(raw);
+  let binary = "";
+  utf8.forEach(b => binary += String.fromCharCode(b));
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+// ─────────────────────────────────────────────
+// CREATE GMAIL DRAFT
+// ─────────────────────────────────────────────
+async function createDraft(toEmails, subject, body, pdfFile) {
+  const htmlBody = body.replace(/\n/g, "<br>") +
+    `<br><br>--<br><img src="https://i.imgur.com/hkzQgT7.png" alt="Joshua Kelly, CEO - Full Court Analytics" style="max-width:500px;">`;
+
+  const base64 = await fileToBase64(pdfFile);
+  const raw = buildRawEmail({
+    from: state.userEmail,
+    to: toEmails,
+    subject,
+    bodyText: body,
+    bodyHtml: htmlBody,
+    attachment: { name: pdfFile.name, base64 }
+  });
+
+  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/drafts", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${state.accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ message: { raw } })
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gmail API error (${res.status}): ${err}`);
+  }
+  return await res.json();
+}
+
+// ─────────────────────────────────────────────
+// FETCH USER EMAIL
+// ─────────────────────────────────────────────
+async function fetchUserEmail() {
+  const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+    headers: { "Authorization": `Bearer ${state.accessToken}` }
+  });
+  if (!res.ok) throw new Error("Could not fetch Gmail profile");
+  const data = await res.json();
+  return data.emailAddress;
+}
+
+// ─────────────────────────────────────────────
+// AUTH
+// ─────────────────────────────────────────────
+function initTokenClient() {
+  const clientId = document.getElementById("clientId").value.trim();
+  if (!clientId) {
+    alert("Please enter your Google OAuth Client ID in Settings first.");
+    return null;
+  }
+  if (!window.google || !google.accounts) {
+    alert("Google Identity Services not loaded yet. Wait a moment and try again.");
+    return null;
+  }
+  return google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: SCOPES,
+    callback: async (response) => {
+      if (response.error) {
+        log(`❌ Auth error: ${response.error}`, "error");
+        return;
+      }
+      state.accessToken = response.access_token;
+      try {
+        state.userEmail = await fetchUserEmail();
+        updateAuthUI(true);
+        log(`✅ Signed in as ${state.userEmail}`, "success");
+        validateRunButton();
+      } catch (e) {
+        log(`❌ ${e.message}`, "error");
+      }
+    }
+  });
+}
+
+function updateAuthUI(signedIn) {
+  const status = document.getElementById("authStatus");
+  const text = document.getElementById("authText");
+  const inBtn = document.getElementById("signInBtn");
+  const outBtn = document.getElementById("signOutBtn");
+  if (signedIn) {
+    status.classList.remove("signed-out");
+    status.classList.add("signed-in");
+    text.textContent = `Signed in as ${state.userEmail}`;
+    inBtn.style.display = "none";
+    outBtn.style.display = "inline-block";
+  } else {
+    status.classList.remove("signed-in");
+    status.classList.add("signed-out");
+    text.textContent = "Not signed in";
+    inBtn.style.display = "inline-block";
+    outBtn.style.display = "none";
+  }
+}
+
+document.getElementById("signInBtn").addEventListener("click", () => {
+  if (!state.tokenClient) state.tokenClient = initTokenClient();
+  if (state.tokenClient) state.tokenClient.requestAccessToken({ prompt: "consent" });
+});
+
+document.getElementById("signOutBtn").addEventListener("click", () => {
+  if (state.accessToken) {
+    google.accounts.oauth2.revoke(state.accessToken, () => {});
+  }
+  state.accessToken = null;
+  state.userEmail = null;
+  updateAuthUI(false);
+  validateRunButton();
+});
+
+// ─────────────────────────────────────────────
+// FILE UPLOAD HANDLERS
+// ─────────────────────────────────────────────
+function setupDropZone(dropEl, inputEl, onFiles) {
+  dropEl.addEventListener("click", () => inputEl.click());
+  inputEl.addEventListener("change", e => onFiles([...e.target.files]));
+  dropEl.addEventListener("dragover", e => {
+    e.preventDefault();
+    dropEl.classList.add("dragover");
+  });
+  dropEl.addEventListener("dragleave", () => dropEl.classList.remove("dragover"));
+  dropEl.addEventListener("drop", e => {
+    e.preventDefault();
+    dropEl.classList.remove("dragover");
+    onFiles([...e.dataTransfer.files]);
+  });
+}
+
+setupDropZone(
+  document.getElementById("contactsDrop"),
+  document.getElementById("contactsInput"),
+  async (files) => {
+    if (!files.length) return;
+    const file = files[0];
+    try {
+      const buf = await file.arrayBuffer();
+      state.contactsWorkbook = XLSX.read(buf, { type: "array" });
+      state.contactsFileName = file.name;
+      renderContactsList();
+      validateRunButton();
+      log(`✅ Loaded contacts file: ${file.name} (${state.contactsWorkbook.SheetNames.length} tabs)`, "success");
+    } catch (e) {
+      log(`❌ Could not read file: ${e.message}`, "error");
+    }
+  }
+);
+
+setupDropZone(
+  document.getElementById("pdfDrop"),
+  document.getElementById("pdfInput"),
+  (files) => {
+    const pdfs = files.filter(f => f.name.toLowerCase().endsWith(".pdf"));
+    state.pdfFiles = [...state.pdfFiles, ...pdfs];
+    renderPdfList();
+    validateRunButton();
+  }
+);
+
+function renderContactsList() {
+  const el = document.getElementById("contactsList");
+  el.innerHTML = "";
+  if (!state.contactsFileName) return;
+  const item = document.createElement("div");
+  item.className = "file-item";
+  item.innerHTML = `<span>📊 ${state.contactsFileName} (${state.contactsWorkbook.SheetNames.length} tabs)</span>
+    <button class="remove" title="Remove">✕</button>`;
+  item.querySelector(".remove").addEventListener("click", () => {
+    state.contactsWorkbook = null;
+    state.contactsFileName = null;
+    renderContactsList();
+    validateRunButton();
+  });
+  el.appendChild(item);
+}
+
+function renderPdfList() {
+  const el = document.getElementById("pdfList");
+  el.innerHTML = "";
+  state.pdfFiles.forEach((f, idx) => {
+    const item = document.createElement("div");
+    item.className = "file-item";
+    item.innerHTML = `<span>📄 ${f.name}</span>
+      <button class="remove" title="Remove">✕</button>`;
+    item.querySelector(".remove").addEventListener("click", () => {
+      state.pdfFiles.splice(idx, 1);
+      renderPdfList();
+      validateRunButton();
+    });
+    el.appendChild(item);
+  });
+}
+
+// ─────────────────────────────────────────────
+// VALIDATE RUN BUTTON
+// ─────────────────────────────────────────────
+function validateRunButton() {
+  const ready = state.accessToken
+    && state.contactsWorkbook
+    && state.pdfFiles.length > 0
+    && document.getElementById("emailTemplate").value.trim()
+    && document.getElementById("client").value.trim()
+    && document.getElementById("state").value.trim();
+  document.getElementById("runBtn").disabled = !ready;
+}
+
+["emailSubject", "emailTemplate", "client", "state", "gender"].forEach(id => {
+  document.getElementById(id).addEventListener("input", () => {
+    validateRunButton();
+    SAVED.save(id, document.getElementById(id).value);
+  });
+});
+
+document.getElementById("clientId").addEventListener("input", e => {
+  SAVED.save("clientId", e.target.value);
+});
+
+// ─────────────────────────────────────────────
+// MAIN RUN
+// ─────────────────────────────────────────────
+document.getElementById("runBtn").addEventListener("click", async () => {
+  const subjectTpl = document.getElementById("emailSubject").value;
+  const template = document.getElementById("emailTemplate").value;
+  const client = document.getElementById("client").value.trim();
+  const gender = document.getElementById("gender").value;
+  const statePart = document.getElementById("state").value.trim();
+
+  clearLog();
+  log("🏀 FCA Email Automation Starting...", "info");
+  log("", "dim");
+  log(`📁 Client: ${client} | ${gender} | ${statePart}`, "info");
+
+  const contacts = loadContactsFromWorkbook(state.contactsWorkbook, statePart, gender);
+  if (!Object.keys(contacts).length) {
+    log("⚠️  No contacts loaded — aborting.", "error");
+    return;
+  }
+
+  let drafted = 0;
+  const skipped = [];
+
+  document.getElementById("runBtn").disabled = true;
+
+  for (const pdf of state.pdfFiles) {
+    const opponent = extractOpponent(pdf.name);
+    const normOpp = normalizeSchoolName(opponent);
+    const coaches = contacts[normOpp];
+
+    if (!coaches) {
+      log(`❌ No match for: '${opponent}' (normalized: '${normOpp}')`, "error");
+      skipped.push({ file: pdf.name, reason: "No coach match" });
+      continue;
+    }
+
+    const toEmails = coaches.map(c => c.email).filter(Boolean);
+    if (!toEmails.length) {
+      log(`❌ Coaches found for '${opponent}' but no emails.`, "error");
+      skipped.push({ file: pdf.name, reason: "No email" });
+      continue;
+    }
+
+    const { subject, body } = fillTemplate(subjectTpl, template, coaches, opponent, client, gender, statePart);
+
+    try {
+      await createDraft(toEmails, subject, body, pdf);
+      const coachNames = coaches.map(c => c.name).join(", ");
+      log(`✅ Draft created → ${opponent} | To: ${toEmails.join(", ")} (${coachNames})`, "success");
+      drafted++;
+    } catch (e) {
+      log(`❌ Draft failed for ${opponent}: ${e.message}`, "error");
+      skipped.push({ file: pdf.name, reason: e.message });
+    }
+  }
+
+  log("", "dim");
+  log("─".repeat(50), "dim");
+  log(`✅ Done! ${drafted} draft(s) created in Gmail.`, "success");
+  if (skipped.length) {
+    log(`⚠️  ${skipped.length} report(s) skipped:`, "warning");
+    skipped.forEach(s => log(`   • ${s.file} — ${s.reason}`, "warning"));
+  }
+  log("─".repeat(50), "dim");
+
+  validateRunButton();
+});
+
+document.getElementById("clearLogBtn").addEventListener("click", clearLog);
+
+// ─────────────────────────────────────────────
+// NAV (for future tools)
+// ─────────────────────────────────────────────
+document.querySelectorAll("nav button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tool").forEach(t => t.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById(btn.dataset.tool).classList.add("active");
+  });
+});
+
+// ─────────────────────────────────────────────
+// RESTORE SAVED SETTINGS
+// ─────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  const saved = SAVED.load();
+  ["clientId", "emailSubject", "emailTemplate", "client", "state", "gender"].forEach(id => {
+    if (saved[id]) document.getElementById(id).value = saved[id];
+  });
+  validateRunButton();
+});
+</script>
+
+</body>
+</html>
