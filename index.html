@@ -293,6 +293,61 @@
     display: flex;
     gap: 12px;
     margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .preview-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .preview-card.error {
+    border-left: 3px solid var(--error);
+  }
+  .preview-card.ok {
+    border-left: 3px solid var(--success);
+  }
+  .preview-card .pv-meta {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .preview-card .pv-to {
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .preview-card .pv-subject {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text);
+  }
+  .preview-card .pv-body {
+    background: var(--panel);
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.6;
+    border: 1px solid var(--border);
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .preview-card .pv-error {
+    color: var(--error);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .preview-summary {
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border-radius: 6px;
+    border-left: 3px solid var(--accent);
   }
   @media (max-width: 768px) {
     body { flex-direction: column; }
@@ -425,9 +480,11 @@
         <div class="step-title">Create Drafts</div>
       </div>
       <div class="actions">
+        <button class="btn btn-secondary" id="previewBtn" disabled>Preview Drafts</button>
         <button class="btn" id="runBtn" disabled>Create Gmail Drafts</button>
         <button class="btn btn-secondary" id="clearLogBtn">Clear Log</button>
       </div>
+      <div id="previewArea" style="margin-top:14px;"></div>
       <div class="log" id="log" style="margin-top:14px;"><span class="log-dim">Log output will appear here...</span></div>
     </div>
   </section>
@@ -567,8 +624,16 @@ function fillTemplate(subjectTpl, template, coaches, opponent, client, gender, s
 // EXTRACT OPPONENT FROM FILENAME
 // ─────────────────────────────────────────────
 function extractOpponent(filename) {
-  const name = filename.replace(/\.pdf$/i, "");
-  if (name.includes(" vs ")) return name.split(" vs ")[0].trim();
+  let name = filename.replace(/\.pdf$/i, "");
+  // Strip common suffixes like "— Postgame Report", "- Post Game Report", etc.
+  name = name.replace(/\s*[—\-–]\s*post\s*game\s*report.*$/i, "");
+  name = name.replace(/\s*[—\-–]\s*postgame\s*report.*$/i, "");
+  name = name.replace(/\s*[—\-–]\s*full\s*post\s*game\s*report.*$/i, "");
+
+  if (name.includes(" vs ")) {
+    // Opponent is the part AFTER "vs" (e.g. "Caston vs Argos" → "Argos")
+    return name.split(" vs ").slice(1).join(" vs ").trim();
+  }
   return name.trim();
 }
 
@@ -845,6 +910,13 @@ function validateRunButton() {
     && document.getElementById("client").value.trim()
     && document.getElementById("state").value.trim();
   document.getElementById("runBtn").disabled = !ready;
+
+  const previewReady = state.contactsWorkbook
+    && state.pdfFiles.length > 0
+    && document.getElementById("emailTemplate").value.trim()
+    && document.getElementById("client").value.trim()
+    && document.getElementById("state").value.trim();
+  document.getElementById("previewBtn").disabled = !previewReady;
 }
 
 ["emailSubject", "emailTemplate", "client", "state", "gender"].forEach(id => {
@@ -927,7 +999,98 @@ document.getElementById("runBtn").addEventListener("click", async () => {
   validateRunButton();
 });
 
-document.getElementById("clearLogBtn").addEventListener("click", clearLog);
+document.getElementById("clearLogBtn").addEventListener("click", () => {
+  clearLog();
+  document.getElementById("previewArea").innerHTML = "";
+});
+
+// ─────────────────────────────────────────────
+// PREVIEW
+// ─────────────────────────────────────────────
+document.getElementById("previewBtn").addEventListener("click", () => {
+  const subjectTpl = document.getElementById("emailSubject").value;
+  const template = document.getElementById("emailTemplate").value;
+  const client = document.getElementById("client").value.trim();
+  const gender = document.getElementById("gender").value;
+  const statePart = document.getElementById("state").value.trim();
+
+  const previewArea = document.getElementById("previewArea");
+  previewArea.innerHTML = "";
+
+  // Use a silent contacts loader (no log spam)
+  const tabName = `${statePart} ${gender}`;
+  const sheet = state.contactsWorkbook.Sheets[tabName];
+  if (!sheet) {
+    previewArea.innerHTML = `<div class="preview-card error"><div class="pv-error">⚠️ Tab '${tabName}' not found in contacts file. Available: ${state.contactsWorkbook.SheetNames.join(", ")}</div></div>`;
+    return;
+  }
+
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  const contacts = {};
+  for (const row of rows) {
+    const school = String(row["schools"] || "").trim();
+    const first = String(row["First Name"] || "").trim();
+    const last = String(row["Last Name"] || "").trim();
+    const email = String(row["Email"] || "").trim();
+    const rank = String(row["Rank"] || "").trim();
+    if (!school || !email) continue;
+    if (!rank.toLowerCase().includes("head")) continue;
+    const key = normalizeSchoolName(school);
+    const coach = { name: `${first} ${last}`.trim(), email };
+    if (!contacts[key]) contacts[key] = [];
+    contacts[key].push(coach);
+  }
+
+  let matched = 0;
+  let unmatched = 0;
+  const cards = [];
+
+  for (const pdf of state.pdfFiles) {
+    const opponent = extractOpponent(pdf.name);
+    const normOpp = normalizeSchoolName(opponent);
+    const coaches = contacts[normOpp];
+
+    const card = document.createElement("div");
+
+    if (!coaches) {
+      unmatched++;
+      card.className = "preview-card error";
+      card.innerHTML = `
+        <div class="pv-meta">📄 ${pdf.name}</div>
+        <div class="pv-error">❌ No match for opponent '${opponent}' (normalized: '${normOpp}')</div>
+      `;
+    } else {
+      matched++;
+      const toEmails = coaches.map(c => c.email).filter(Boolean);
+      const { subject, body } = fillTemplate(subjectTpl, template, coaches, opponent, client, gender, statePart);
+      const htmlBody = body.replace(/\n/g, "<br>") +
+        `<br><br>--<br><img src="https://i.imgur.com/hkzQgT7.png" alt="Joshua Kelly, CEO - Full Court Analytics" style="max-width:500px;">`;
+
+      const coachNames = coaches.map(c => c.name).join(", ");
+      card.className = "preview-card ok";
+      card.innerHTML = `
+        <div class="pv-meta">📄 ${pdf.name} → ${opponent}</div>
+        <div class="pv-to"><strong>To:</strong> ${toEmails.join(", ")} (${coachNames})</div>
+        <div class="pv-subject">${escapeHtml(subject)}</div>
+        <div class="pv-body">${htmlBody}</div>
+      `;
+    }
+    cards.push(card);
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "preview-summary";
+  summary.innerHTML = `<strong>Preview:</strong> ${matched} draft(s) ready to send · ${unmatched} skipped`;
+  previewArea.appendChild(summary);
+  cards.forEach(c => previewArea.appendChild(c));
+});
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
 
 // ─────────────────────────────────────────────
 // NAV (for future tools)
