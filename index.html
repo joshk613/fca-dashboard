@@ -596,7 +596,33 @@ function loadContactsFromWorkbook(workbook, statePart, gender) {
   }
 
   log(`✅ Loaded coaches for ${Object.keys(contacts).length} schools from '${tabName}'`, "success");
+  const sample = Object.keys(contacts).slice(0, 5);
+  if (sample.length) log(`   Sample loaded schools: ${sample.join(" | ")}`, "dim");
   return contacts;
+}
+
+// Try exact match first, then fall back to prefix / word-subset match
+function findCoaches(contacts, normOpp) {
+  if (contacts[normOpp]) return { coaches: contacts[normOpp], matchedKey: normOpp, exact: true };
+
+  const oppWords = normOpp.split(" ").filter(Boolean);
+  const candidates = [];
+
+  for (const key of Object.keys(contacts)) {
+    const keyWords = key.split(" ").filter(Boolean);
+    // Match if school name STARTS with the opponent's words (whole-word prefix)
+    if (oppWords.every((w, i) => keyWords[i] === w)) {
+      candidates.push(key);
+    }
+  }
+
+  if (candidates.length === 1) {
+    return { coaches: contacts[candidates[0]], matchedKey: candidates[0], exact: false };
+  }
+  if (candidates.length > 1) {
+    return { coaches: null, matchedKey: null, exact: false, ambiguous: candidates };
+  }
+  return { coaches: null, matchedKey: null, exact: false };
 }
 
 // ─────────────────────────────────────────────
@@ -965,12 +991,21 @@ document.getElementById("runBtn").addEventListener("click", async () => {
   for (const pdf of state.pdfFiles) {
     const opponent = extractOpponent(pdf.name);
     const normOpp = normalizeSchoolName(opponent);
-    const coaches = contacts[normOpp];
+    const result = findCoaches(contacts, normOpp);
 
-    if (!coaches) {
+    if (result.ambiguous) {
+      log(`❌ Ambiguous match for '${opponent}' — multiple schools: ${result.ambiguous.join(", ")}`, "error");
+      skipped.push({ file: pdf.name, reason: `Ambiguous (${result.ambiguous.length} matches)` });
+      continue;
+    }
+    if (!result.coaches) {
       log(`❌ No match for: '${opponent}' (normalized: '${normOpp}')`, "error");
       skipped.push({ file: pdf.name, reason: "No coach match" });
       continue;
+    }
+    const coaches = result.coaches;
+    if (!result.exact) {
+      log(`   ↳ Fuzzy match: '${normOpp}' → '${result.matchedKey}'`, "dim");
     }
 
     const toEmails = coaches.map(c => c.email).filter(Boolean);
@@ -1054,11 +1089,19 @@ document.getElementById("previewBtn").addEventListener("click", () => {
   for (const pdf of state.pdfFiles) {
     const opponent = extractOpponent(pdf.name);
     const normOpp = normalizeSchoolName(opponent);
-    const coaches = contacts[normOpp];
+    const result = findCoaches(contacts, normOpp);
+    const coaches = result.coaches;
 
     const card = document.createElement("div");
 
-    if (!coaches) {
+    if (result.ambiguous) {
+      unmatched++;
+      card.className = "preview-card error";
+      card.innerHTML = `
+        <div class="pv-meta">📄 ${pdf.name}</div>
+        <div class="pv-error">❌ Ambiguous match for '${opponent}' — multiple schools: ${result.ambiguous.join(", ")}</div>
+      `;
+    } else if (!coaches) {
       unmatched++;
       card.className = "preview-card error";
       card.innerHTML = `
