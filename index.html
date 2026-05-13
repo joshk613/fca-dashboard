@@ -587,7 +587,9 @@ function loadContactsFromWorkbook(workbook, statePart, gender) {
     }
     return null;
   };
-  const colSchool = findCol("schools", "school", "school name", "team");
+  // Try singular "school" / "school name" first; fall back to "schools" only if those don't exist.
+  // Some sheets have a "schools" column holding URLs and a separate "school" column with names.
+  const colSchool = findCol("school name", "school", "team", "schools");
   const colFirst  = findCol("First Name", "first", "firstname");
   const colLast   = findCol("Last Name", "last", "lastname");
   const colEmail  = findCol("Email", "email address", "e-mail");
