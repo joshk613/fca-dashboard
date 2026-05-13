@@ -578,26 +578,68 @@ function loadContactsFromWorkbook(workbook, statePart, gender) {
     return {};
   }
 
-  const contacts = {};
-  for (const row of rows) {
-    const school = String(row["schools"] || "").trim();
-    const first = String(row["First Name"] || "").trim();
-    const last = String(row["Last Name"] || "").trim();
-    const email = String(row["Email"] || "").trim();
-    const rank = String(row["Rank"] || "").trim();
+  // Case-insensitive column lookup. Try multiple known aliases for each field.
+  const headers = Object.keys(rows[0] || {});
+  const findCol = (...aliases) => {
+    for (const alias of aliases) {
+      const hit = headers.find(h => h.toLowerCase().trim() === alias.toLowerCase().trim());
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const colSchool = findCol("schools", "school", "school name", "team");
+  const colFirst  = findCol("First Name", "first", "firstname");
+  const colLast   = findCol("Last Name", "last", "lastname");
+  const colEmail  = findCol("Email", "email address", "e-mail");
+  const colRank   = findCol("Rank", "title", "level");
 
-    if (!school || !email) continue;
-    if (!rank.toLowerCase().includes("head")) continue;
-
-    const key = normalizeSchoolName(school);
-    const coach = { name: `${first} ${last}`.trim(), email };
-    if (!contacts[key]) contacts[key] = [];
-    contacts[key].push(coach);
+  if (!colSchool) {
+    log(`⚠️  Could not find a 'schools' column. Headers found: ${headers.join(" | ")}`, "error");
+    return {};
   }
 
+  let total = 0, missingSchoolOrEmail = 0, notHead = 0, loaded = 0;
+  const contacts = {};
+  const headPool = {};   // strict: only "head" coaches
+  const allPool  = {};   // fallback: all coaches with school + email
+
+  for (const row of rows) {
+    total++;
+    const school = String(row[colSchool] || "").trim();
+    const first  = colFirst ? String(row[colFirst] || "").trim() : "";
+    const last   = colLast  ? String(row[colLast]  || "").trim() : "";
+    const email  = colEmail ? String(row[colEmail] || "").trim() : "";
+    const rank   = colRank  ? String(row[colRank]  || "").trim() : "";
+
+    if (!school || !email) { missingSchoolOrEmail++; continue; }
+
+    const key = normalizeSchoolName(school);
+    const coach = { name: `${first} ${last}`.trim() || email, email };
+
+    if (!allPool[key]) allPool[key] = [];
+    allPool[key].push(coach);
+
+    if (rank.toLowerCase().includes("head") || !rank) {
+      if (!headPool[key]) headPool[key] = [];
+      headPool[key].push(coach);
+      loaded++;
+    } else {
+      notHead++;
+    }
+  }
+
+  // Use head pool if it has data; otherwise fall back to all coaches
+  const finalPool = Object.keys(headPool).length ? headPool : allPool;
+  Object.assign(contacts, finalPool);
+
   log(`✅ Loaded coaches for ${Object.keys(contacts).length} schools from '${tabName}'`, "success");
-  const sample = Object.keys(contacts).slice(0, 5);
+  log(`   Diagnostic: ${total} rows · ${missingSchoolOrEmail} missing school/email · ${notHead} non-head rank`, "dim");
+  log(`   Columns used: school='${colSchool}', email='${colEmail||"(none)"}', rank='${colRank||"(none)"}'`, "dim");
+  const sample = Object.keys(contacts).slice(0, 8);
   if (sample.length) log(`   Sample loaded schools: ${sample.join(" | ")}`, "dim");
+
+  // Stash the all-pool on the contacts object for diagnostics on misses
+  contacts.__allPool = allPool;
   return contacts;
 }
 
@@ -607,8 +649,9 @@ function findCoaches(contacts, normOpp) {
 
   const oppWords = normOpp.split(" ").filter(Boolean);
   const candidates = [];
+  const keys = Object.keys(contacts).filter(k => k !== "__allPool");
 
-  for (const key of Object.keys(contacts)) {
+  for (const key of keys) {
     const keyWords = key.split(" ").filter(Boolean);
     // Match if school name STARTS with the opponent's words (whole-word prefix)
     if (oppWords.every((w, i) => keyWords[i] === w)) {
@@ -623,6 +666,24 @@ function findCoaches(contacts, normOpp) {
     return { coaches: null, matchedKey: null, exact: false, ambiguous: candidates };
   }
   return { coaches: null, matchedKey: null, exact: false };
+}
+
+// When a school can't be matched, see if it exists in the all-pool (filtered out by rank)
+function diagnoseMiss(contacts, normOpp) {
+  const allPool = contacts.__allPool || {};
+  const allKeys = Object.keys(allPool);
+  if (allPool[normOpp]) {
+    return `school exists in sheet but coach has no "Head" rank`;
+  }
+  const oppWords = normOpp.split(" ").filter(Boolean);
+  const partials = allKeys.filter(k => {
+    const kw = k.split(" ").filter(Boolean);
+    return oppWords.every((w, i) => kw[i] === w);
+  });
+  if (partials.length) {
+    return `similar school(s) in sheet (no Head rank): ${partials.slice(0, 3).join(" | ")}`;
+  }
+  return null;
 }
 
 // ─────────────────────────────────────────────
@@ -999,8 +1060,9 @@ document.getElementById("runBtn").addEventListener("click", async () => {
       continue;
     }
     if (!result.coaches) {
-      log(`❌ No match for: '${opponent}' (normalized: '${normOpp}')`, "error");
-      skipped.push({ file: pdf.name, reason: "No coach match" });
+      const hint = diagnoseMiss(contacts, normOpp);
+      log(`❌ No match for: '${opponent}' (normalized: '${normOpp}')${hint ? " — " + hint : ""}`, "error");
+      skipped.push({ file: pdf.name, reason: hint || "No coach match" });
       continue;
     }
     const coaches = result.coaches;
