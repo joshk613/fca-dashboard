@@ -364,6 +364,7 @@
   <div class="tag">Dashboard</div>
   <nav>
     <button class="active" data-tool="post-game">Post Game Reports</button>
+    <button data-tool="json-generator">JSON Generator</button>
     <!-- Add more tools here later -->
   </nav>
 </aside>
@@ -487,6 +488,11 @@
       <div id="previewArea" style="margin-top:14px;"></div>
       <div class="log" id="log" style="margin-top:14px;"><span class="log-dim">Log output will appear here...</span></div>
     </div>
+  </section>
+
+  <!-- JSON Generator Tool (embedded as iframe) -->
+  <section id="json-generator" class="tool" style="height: calc(100vh - 64px);">
+    <iframe src="json-generator.html" style="width:100%; height:100%; border:none; border-radius:8px; background:white;"></iframe>
   </section>
 </main>
 
