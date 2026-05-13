@@ -408,6 +408,8 @@
       <div class="placeholder-hint">
         Available placeholders:
         <code>{{coach_name}}</code>
+        <code>{{first_name}}</code>
+        <code>{{last_name}}</code>
         <code>{{opponent}}</code>
         <code>{{client}}</code>
         <code>{{gender}}</code>
@@ -699,8 +701,22 @@ function fillTemplate(subjectTpl, template, coaches, opponent, client, gender, s
     coachGreeting = coaches.map(c => `Coach ${c.name.split(" ").pop()}`).join(" and ");
   }
 
+  // Last name(s) only — joined by " and " when multiple coaches
+  const lastNames = coaches
+    .map(c => c.name.split(" ").pop())
+    .filter(Boolean)
+    .join(" and ");
+
+  // First name(s) only
+  const firstNames = coaches
+    .map(c => c.name.split(" ")[0])
+    .filter(Boolean)
+    .join(" and ");
+
   const fill = (s) => s
     .replaceAll("{{coach_name}}", coachGreeting)
+    .replaceAll("{{last_name}}", lastNames)
+    .replaceAll("{{first_name}}", firstNames)
     .replaceAll("{{opponent}}", opponent)
     .replaceAll("{{client}}", client)
     .replaceAll("{{gender}}", gender)
