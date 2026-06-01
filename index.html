@@ -382,6 +382,10 @@
         <label>Google OAuth Client ID</label>
         <input type="text" id="clientId" placeholder="xxxxx.apps.googleusercontent.com">
         <p class="step-desc" style="margin-top:6px;">From your Google Cloud Console → APIs & Services → Credentials. Saved in your browser only.</p>
+
+        <label style="margin-top:14px;">Tracking Google Sheet (URL or ID)</label>
+        <input type="text" id="trackingSheetId" placeholder="https://docs.google.com/spreadsheets/d/.../edit">
+        <p class="step-desc" style="margin-top:6px;">Where the running list of coaches gets appended. Paste the full URL or just the ID. First tab is used.</p>
       </div>
     </details>
 
@@ -490,6 +494,22 @@
       <div id="previewArea" style="margin-top:14px;"></div>
       <div class="log" id="log" style="margin-top:14px;"><span class="log-dim">Log output will appear here...</span></div>
     </div>
+
+    <!-- Step 7: Sync to Tracking Sheet -->
+    <div class="step">
+      <div class="step-header">
+        <div class="step-number">7</div>
+        <div class="step-title">Sync to Tracking Sheet</div>
+      </div>
+      <p class="step-desc">Append the coaches you just drafted to your tracking Google Sheet. Duplicate rows (same email already in the sheet) get highlighted yellow, and their drafts are tagged <code>Send Later</code> in Gmail.</p>
+      <div id="syncStatus" class="step-desc" style="margin-bottom:10px;">
+        <span id="syncQueueCount">0</span> draft(s) queued to sync.
+      </div>
+      <div class="actions">
+        <button class="btn" id="syncBtn" disabled>Sync to Google Sheet</button>
+      </div>
+      <div class="log" id="syncLog" style="margin-top:14px;"><span class="log-dim">Sync output will appear here...</span></div>
+    </div>
   </section>
 
   <!-- JSON Generator Tool (embedded as iframe) -->
@@ -502,7 +522,11 @@
 // ─────────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────────
-const SCOPES = "https://www.googleapis.com/auth/gmail.compose";
+const SCOPES = [
+  "https://www.googleapis.com/auth/gmail.modify",      // create drafts + manage labels
+  "https://www.googleapis.com/auth/spreadsheets"       // read/write tracking sheet
+].join(" ");
+const SEND_LATER_LABEL = "Send Later";
 const STRIP_WORDS = [
   "high school", "preparatory school", "preparatory", "prep school",
   "prep", "academy", "hs", "school", "senior"
@@ -518,6 +542,8 @@ const state = {
   contactsFileName: null,
   pdfFiles: [],
   tokenClient: null,
+  draftQueue: [],          // entries created in the most recent run, awaiting sheet sync
+  sendLaterLabelId: null,  // cached Gmail label ID for "Send Later"
 };
 
 // ─────────────────────────────────────────────
@@ -907,6 +933,7 @@ function initTokenClient() {
         updateAuthUI(true);
         log(`✅ Signed in as ${state.userEmail}`, "success");
         validateRunButton();
+        updateSyncUI();
       } catch (e) {
         log(`❌ ${e.message}`, "error");
       }
@@ -945,8 +972,10 @@ document.getElementById("signOutBtn").addEventListener("click", () => {
   }
   state.accessToken = null;
   state.userEmail = null;
+  state.sendLaterLabelId = null;
   updateAuthUI(false);
   validateRunButton();
+  updateSyncUI();
 });
 
 // ─────────────────────────────────────────────
@@ -1062,6 +1091,182 @@ document.getElementById("clientId").addEventListener("input", e => {
   SAVED.save("clientId", e.target.value);
 });
 
+document.getElementById("trackingSheetId").addEventListener("input", e => {
+  SAVED.save("trackingSheetId", e.target.value);
+  updateSyncUI();
+});
+
+// ─────────────────────────────────────────────
+// SYNC LOG + UI
+// ─────────────────────────────────────────────
+const syncLogEl = document.getElementById("syncLog");
+function syncLog(msg, level = "info") {
+  const span = document.createElement("div");
+  span.className = `log-${level}`;
+  span.textContent = msg;
+  syncLogEl.appendChild(span);
+  syncLogEl.scrollTop = syncLogEl.scrollHeight;
+}
+function clearSyncLog() { syncLogEl.innerHTML = ""; }
+
+function updateSyncUI() {
+  const count = state.draftQueue.length;
+  document.getElementById("syncQueueCount").textContent = count;
+  const sheetId = parseSheetId(document.getElementById("trackingSheetId").value);
+  document.getElementById("syncBtn").disabled = !(state.accessToken && count > 0 && sheetId);
+}
+
+// ─────────────────────────────────────────────
+// GOOGLE SHEETS HELPERS
+// ─────────────────────────────────────────────
+function parseSheetId(input) {
+  if (!input) return null;
+  const trimmed = input.trim();
+  // Full URL form
+  const m = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) return m[1];
+  // Bare ID
+  if (/^[a-zA-Z0-9_-]{20,}$/.test(trimmed)) return trimmed;
+  return null;
+}
+
+async function sheetsApi(path, opts = {}) {
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${path}`, {
+    ...opts,
+    headers: {
+      "Authorization": `Bearer ${state.accessToken}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Sheets API ${res.status}: ${err}`);
+  }
+  return await res.json();
+}
+
+// Returns { firstSheetId, firstSheetTitle }
+async function getFirstSheetMeta(spreadsheetId) {
+  const meta = await sheetsApi(`${spreadsheetId}?fields=sheets(properties(sheetId,title))`);
+  const first = meta.sheets && meta.sheets[0];
+  if (!first) throw new Error("Spreadsheet has no tabs");
+  return { firstSheetId: first.properties.sheetId, firstSheetTitle: first.properties.title };
+}
+
+const SHEET_HEADERS = [
+  "Date Created", "Coach Name", "Email", "School",
+  "Client", "Gender", "State", "Subject", "Status", "Draft ID"
+];
+
+// Read existing emails (column C, skipping header). Returns lowercase Set.
+async function fetchExistingEmails(spreadsheetId, sheetTitle) {
+  const range = encodeURIComponent(`${sheetTitle}!C2:C`);
+  const data = await sheetsApi(`${spreadsheetId}/values/${range}`);
+  const rows = data.values || [];
+  return new Set(rows.map(r => String(r[0] || "").trim().toLowerCase()).filter(Boolean));
+}
+
+// Make sure row 1 has headers; if the sheet is empty, write them.
+async function ensureHeaders(spreadsheetId, sheetTitle) {
+  const range = encodeURIComponent(`${sheetTitle}!A1:J1`);
+  const data = await sheetsApi(`${spreadsheetId}/values/${range}`);
+  const existing = (data.values && data.values[0]) || [];
+  if (existing.length >= SHEET_HEADERS.length) return; // already set up
+  await sheetsApi(`${spreadsheetId}/values/${range}?valueInputOption=RAW`, {
+    method: "PUT",
+    body: JSON.stringify({ values: [SHEET_HEADERS] })
+  });
+}
+
+// Append rows; returns the starting row index (1-based) of the appended block.
+async function appendRows(spreadsheetId, sheetTitle, rows) {
+  const range = encodeURIComponent(`${sheetTitle}!A:J`);
+  const res = await sheetsApi(
+    `${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+    { method: "POST", body: JSON.stringify({ values: rows }) }
+  );
+  // updatedRange like "Sheet1!A42:J45" — parse the starting row
+  const updated = res.updates && res.updates.updatedRange;
+  const rowMatch = updated && updated.match(/![A-Z]+(\d+):/);
+  return rowMatch ? parseInt(rowMatch[1], 10) : null;
+}
+
+// Apply yellow background to specific rows (0-indexed offsets from `startRow1Based - 1`).
+async function highlightRows(spreadsheetId, sheetId, startRow1Based, dupOffsets) {
+  if (!dupOffsets.length) return;
+  const requests = dupOffsets.map(offset => {
+    const rowIndex = (startRow1Based - 1) + offset; // 0-based for API
+    return {
+      repeatCell: {
+        range: {
+          sheetId,
+          startRowIndex: rowIndex,
+          endRowIndex: rowIndex + 1,
+          startColumnIndex: 0,
+          endColumnIndex: SHEET_HEADERS.length
+        },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 1, green: 0.95, blue: 0.6 }
+          }
+        },
+        fields: "userEnteredFormat.backgroundColor"
+      }
+    };
+  });
+  await sheetsApi(`${spreadsheetId}:batchUpdate`, {
+    method: "POST",
+    body: JSON.stringify({ requests })
+  });
+}
+
+// ─────────────────────────────────────────────
+// GMAIL LABEL HELPERS
+// ─────────────────────────────────────────────
+async function gmailApi(path, opts = {}) {
+  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, {
+    ...opts,
+    headers: {
+      "Authorization": `Bearer ${state.accessToken}`,
+      "Content-Type": "application/json",
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Gmail API ${res.status}: ${err}`);
+  }
+  return await res.json();
+}
+
+async function ensureSendLaterLabel() {
+  if (state.sendLaterLabelId) return state.sendLaterLabelId;
+  const list = await gmailApi("labels");
+  const existing = (list.labels || []).find(l => l.name === SEND_LATER_LABEL);
+  if (existing) {
+    state.sendLaterLabelId = existing.id;
+    return existing.id;
+  }
+  const created = await gmailApi("labels", {
+    method: "POST",
+    body: JSON.stringify({
+      name: SEND_LATER_LABEL,
+      labelListVisibility: "labelShow",
+      messageListVisibility: "show"
+    })
+  });
+  state.sendLaterLabelId = created.id;
+  return created.id;
+}
+
+async function addLabelToMessage(messageId, labelId) {
+  await gmailApi(`messages/${messageId}/modify`, {
+    method: "POST",
+    body: JSON.stringify({ addLabelIds: [labelId] })
+  });
+}
+
 // ─────────────────────────────────────────────
 // MAIN RUN
 // ─────────────────────────────────────────────
@@ -1083,8 +1288,28 @@ document.getElementById("runBtn").addEventListener("click", async () => {
     return;
   }
 
+  // Pre-fetch existing emails from the tracking sheet so we can flag duplicates inline.
+  const sheetId = parseSheetId(document.getElementById("trackingSheetId").value);
+  let priorEmails = new Set();
+  let sheetTitleForRun = null;
+  if (sheetId) {
+    try {
+      const meta = await getFirstSheetMeta(sheetId);
+      sheetTitleForRun = meta.firstSheetTitle;
+      await ensureHeaders(sheetId, sheetTitleForRun);
+      priorEmails = await fetchExistingEmails(sheetId, sheetTitleForRun);
+      log(`📒 Tracking sheet loaded: ${priorEmails.size} prior coach email(s) on file.`, "dim");
+    } catch (e) {
+      log(`⚠️  Could not read tracking sheet (continuing without dup check): ${e.message}`, "warning");
+    }
+  } else {
+    log(`📒 No tracking sheet configured — duplicates will not be flagged.`, "dim");
+  }
+
   let drafted = 0;
   const skipped = [];
+  const seenThisRun = new Set();           // emails seen earlier in THIS run
+  const newQueueEntries = [];
 
   document.getElementById("runBtn").disabled = true;
 
@@ -1119,19 +1344,58 @@ document.getElementById("runBtn").addEventListener("click", async () => {
     const { subject, body } = fillTemplate(subjectTpl, template, coaches, opponent, client, gender, statePart);
 
     try {
-      await createDraft(toEmails, subject, body, pdf);
+      const draftResp = await createDraft(toEmails, subject, body, pdf);
       const coachNames = coaches.map(c => c.name).join(", ");
       log(`✅ Draft created → ${opponent} | To: ${toEmails.join(", ")} (${coachNames})`, "success");
       drafted++;
+
+      // Duplicate = any recipient email already exists in the sheet OR was used earlier in this run.
+      const lowerEmails = toEmails.map(e => e.toLowerCase());
+      const isDuplicate = lowerEmails.some(e => priorEmails.has(e) || seenThisRun.has(e));
+      lowerEmails.forEach(e => seenThisRun.add(e));
+
+      const draftId = draftResp.id;
+      const messageId = draftResp.message && draftResp.message.id;
+
+      if (isDuplicate && messageId) {
+        try {
+          const labelId = await ensureSendLaterLabel();
+          await addLabelToMessage(messageId, labelId);
+          log(`   ⚠️  Duplicate coach — tagged "${SEND_LATER_LABEL}" in Gmail.`, "warning");
+        } catch (e) {
+          log(`   ⚠️  Could not tag draft as "${SEND_LATER_LABEL}": ${e.message}`, "warning");
+        }
+      }
+
+      // One queue entry per coach — keeps the sheet one-row-per-coach.
+      const today = new Date().toISOString().slice(0, 10);
+      coaches.forEach(c => {
+        newQueueEntries.push({
+          dateCreated: today,
+          coachName: c.name || "",
+          email: (c.email || "").trim(),
+          school: opponent,
+          client, gender, state: statePart,
+          subject,
+          isDuplicate,
+          draftId
+        });
+      });
     } catch (e) {
       log(`❌ Draft failed for ${opponent}: ${e.message}`, "error");
       skipped.push({ file: pdf.name, reason: e.message });
     }
   }
 
+  // Append this run's entries to the queue (preserves any earlier un-synced runs).
+  state.draftQueue.push(...newQueueEntries);
+
   log("", "dim");
   log("─".repeat(50), "dim");
   log(`✅ Done! ${drafted} draft(s) created in Gmail.`, "success");
+  if (newQueueEntries.length) {
+    log(`📒 ${newQueueEntries.length} row(s) queued for the tracking sheet — click Step 7 to sync.`, "info");
+  }
   if (skipped.length) {
     log(`⚠️  ${skipped.length} report(s) skipped:`, "warning");
     skipped.forEach(s => log(`   • ${s.file} — ${s.reason}`, "warning"));
@@ -1139,11 +1403,80 @@ document.getElementById("runBtn").addEventListener("click", async () => {
   log("─".repeat(50), "dim");
 
   validateRunButton();
+  updateSyncUI();
 });
 
 document.getElementById("clearLogBtn").addEventListener("click", () => {
   clearLog();
   document.getElementById("previewArea").innerHTML = "";
+});
+
+// ─────────────────────────────────────────────
+// SYNC TO TRACKING SHEET
+// ─────────────────────────────────────────────
+document.getElementById("syncBtn").addEventListener("click", async () => {
+  const sheetId = parseSheetId(document.getElementById("trackingSheetId").value);
+  if (!sheetId) {
+    syncLog("❌ Tracking Sheet URL/ID is missing or invalid.", "error");
+    return;
+  }
+  if (!state.draftQueue.length) {
+    syncLog("Nothing queued to sync.", "warning");
+    return;
+  }
+
+  const btn = document.getElementById("syncBtn");
+  btn.disabled = true;
+  clearSyncLog();
+  syncLog("📒 Syncing to tracking sheet...", "info");
+
+  try {
+    const { firstSheetId, firstSheetTitle } = await getFirstSheetMeta(sheetId);
+    await ensureHeaders(sheetId, firstSheetTitle);
+
+    // Re-check duplicates against the sheet at sync time (covers cases where
+    // the user added rows between drafting and syncing, or skipped the pre-fetch).
+    const priorEmails = await fetchExistingEmails(sheetId, firstSheetTitle);
+    const seenInBatch = new Set();
+    const dupOffsets = [];
+
+    const rows = state.draftQueue.map((entry, idx) => {
+      const e = entry.email.toLowerCase();
+      const isDup = entry.isDuplicate || priorEmails.has(e) || seenInBatch.has(e);
+      seenInBatch.add(e);
+      if (isDup) dupOffsets.push(idx);
+      return [
+        entry.dateCreated,
+        entry.coachName,
+        entry.email,
+        entry.school,
+        entry.client,
+        entry.gender,
+        entry.state,
+        entry.subject,
+        isDup ? "Send Later (duplicate)" : "New",
+        entry.draftId || ""
+      ];
+    });
+
+    const startRow = await appendRows(sheetId, firstSheetTitle, rows);
+    syncLog(`✅ Appended ${rows.length} row(s) starting at row ${startRow}.`, "success");
+
+    if (dupOffsets.length && startRow) {
+      await highlightRows(sheetId, firstSheetId, startRow, dupOffsets);
+      syncLog(`🟡 Highlighted ${dupOffsets.length} duplicate row(s) yellow.`, "warning");
+    } else {
+      syncLog(`No duplicates in this batch.`, "dim");
+    }
+
+    state.draftQueue = [];
+    updateSyncUI();
+    syncLog(`✅ Done.`, "success");
+  } catch (e) {
+    syncLog(`❌ Sync failed: ${e.message}`, "error");
+  } finally {
+    updateSyncUI();
+  }
 });
 
 // ─────────────────────────────────────────────
@@ -1259,10 +1592,11 @@ document.querySelectorAll("nav button").forEach(btn => {
 // ─────────────────────────────────────────────
 window.addEventListener("DOMContentLoaded", () => {
   const saved = SAVED.load();
-  ["clientId", "emailSubject", "emailTemplate", "client", "state", "gender"].forEach(id => {
+  ["clientId", "trackingSheetId", "emailSubject", "emailTemplate", "client", "state", "gender"].forEach(id => {
     if (saved[id]) document.getElementById(id).value = saved[id];
   });
   validateRunButton();
+  updateSyncUI();
 });
 </script>
 
