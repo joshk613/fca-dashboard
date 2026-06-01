@@ -590,23 +590,27 @@ function normalizeSchoolName(name) {
 // ─────────────────────────────────────────────
 // CONTACTS LOADING (from .xlsx)
 // ─────────────────────────────────────────────
-function loadContactsFromWorkbook(workbook, statePart, gender) {
+// Pure: build a contacts map from the workbook + tab. Does not log.
+// Returns { contacts, diagnostics }.
+//   diagnostics: { tabName, error?, availableTabs?, total, missingSchoolOrEmail,
+//                  notHead, columns: { school, first, last, name, email, rank } }
+function buildContactsMap(workbook, statePart, gender) {
   const tabName = `${statePart} ${gender}`;
-  log(`📋 Looking up tab: '${tabName}'`, "info");
+  const diag = { tabName, total: 0, missingSchoolOrEmail: 0, notHead: 0, columns: {} };
 
   const sheet = workbook.Sheets[tabName];
   if (!sheet) {
-    log(`⚠️  Tab '${tabName}' not found. Available tabs: ${workbook.SheetNames.join(", ")}`, "error");
-    return {};
+    diag.error = `Tab '${tabName}' not found`;
+    diag.availableTabs = workbook.SheetNames;
+    return { contacts: {}, diagnostics: diag };
   }
 
   const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
   if (!rows.length) {
-    log(`⚠️  No data in tab '${tabName}'.`, "warning");
-    return {};
+    diag.error = `No data in tab '${tabName}'`;
+    return { contacts: {}, diagnostics: diag };
   }
 
-  // Case-insensitive column lookup. Try multiple known aliases for each field.
   const headers = Object.keys(rows[0] || {});
   const findCol = (...aliases) => {
     for (const alias of aliases) {
@@ -615,27 +619,25 @@ function loadContactsFromWorkbook(workbook, statePart, gender) {
     }
     return null;
   };
-  // Try singular "school" / "school name" first; fall back to "schools" only if those don't exist.
-  // Some sheets have a "schools" column holding URLs and a separate "school" column with names.
   const colSchool = findCol("school name", "school", "team", "schools");
   const colFirst  = findCol("First Name", "first", "firstname", "first_name");
   const colLast   = findCol("Last Name", "last", "lastname", "last_name");
   const colName   = findCol("Coach Name", "Coach", "Name", "Full Name", "coach_name");
   const colEmail  = findCol("Email", "email address", "e-mail");
   const colRank   = findCol("Rank", "title", "level", "Position");
+  diag.columns = { school: colSchool, first: colFirst, last: colLast, name: colName, email: colEmail, rank: colRank };
+  diag.headers = headers;
 
   if (!colSchool) {
-    log(`⚠️  Could not find a 'schools' column. Headers found: ${headers.join(" | ")}`, "error");
-    return {};
+    diag.error = `Could not find a 'schools' column`;
+    return { contacts: {}, diagnostics: diag };
   }
 
-  let total = 0, missingSchoolOrEmail = 0, notHead = 0, loaded = 0;
-  const contacts = {};
-  const headPool = {};   // strict: only "head" coaches
-  const allPool  = {};   // fallback: all coaches with school + email
+  const headPool = {};
+  const allPool  = {};
 
   for (const row of rows) {
-    total++;
+    diag.total++;
     const school = String(row[colSchool] || "").trim();
     let first    = colFirst ? String(row[colFirst] || "").trim() : "";
     let last     = colLast  ? String(row[colLast]  || "").trim() : "";
@@ -643,9 +645,8 @@ function loadContactsFromWorkbook(workbook, statePart, gender) {
     const email  = colEmail ? String(row[colEmail] || "").trim() : "";
     const rank   = colRank  ? String(row[colRank]  || "").trim() : "";
 
-    if (!school || !email) { missingSchoolOrEmail++; continue; }
+    if (!school || !email) { diag.missingSchoolOrEmail++; continue; }
 
-    // If first/last weren't found but a combined name column exists, split it.
     if ((!first && !last) && fullName) {
       const parts = fullName.split(/\s+/).filter(Boolean);
       if (parts.length >= 2) {
@@ -666,24 +667,42 @@ function loadContactsFromWorkbook(workbook, statePart, gender) {
     if (rank.toLowerCase().includes("head") || !rank) {
       if (!headPool[key]) headPool[key] = [];
       headPool[key].push(coach);
-      loaded++;
     } else {
-      notHead++;
+      diag.notHead++;
     }
   }
 
-  // Use head pool if it has data; otherwise fall back to all coaches
   const finalPool = Object.keys(headPool).length ? headPool : allPool;
-  Object.assign(contacts, finalPool);
-
-  log(`✅ Loaded coaches for ${Object.keys(contacts).length} schools from '${tabName}'`, "success");
-  log(`   Diagnostic: ${total} rows · ${missingSchoolOrEmail} missing school/email · ${notHead} non-head rank`, "dim");
-  log(`   Columns used: school='${colSchool}', first='${colFirst||"(none)"}', last='${colLast||"(none)"}', name='${colName||"(none)"}', email='${colEmail||"(none)"}', rank='${colRank||"(none)"}'`, "dim");
-  const sample = Object.keys(contacts).slice(0, 8);
-  if (sample.length) log(`   Sample loaded schools: ${sample.join(" | ")}`, "dim");
-
-  // Stash the all-pool on the contacts object for diagnostics on misses
+  const contacts = { ...finalPool };
   contacts.__allPool = allPool;
+  return { contacts, diagnostics: diag };
+}
+
+// Logging wrapper used by Create Drafts. Writes diagnostics to the main log.
+function loadContactsFromWorkbook(workbook, statePart, gender) {
+  const { contacts, diagnostics: d } = buildContactsMap(workbook, statePart, gender);
+  log(`📋 Looking up tab: '${d.tabName}'`, "info");
+
+  if (d.error && d.availableTabs) {
+    log(`⚠️  ${d.error}. Available tabs: ${d.availableTabs.join(", ")}`, "error");
+    return contacts;
+  }
+  if (d.error === `No data in tab '${d.tabName}'`) {
+    log(`⚠️  No data in tab '${d.tabName}'.`, "warning");
+    return contacts;
+  }
+  if (d.error === `Could not find a 'schools' column`) {
+    log(`⚠️  Could not find a 'schools' column. Headers found: ${(d.headers || []).join(" | ")}`, "error");
+    return contacts;
+  }
+
+  const schoolCount = Object.keys(contacts).filter(k => k !== "__allPool").length;
+  log(`✅ Loaded coaches for ${schoolCount} schools from '${d.tabName}'`, "success");
+  log(`   Diagnostic: ${d.total} rows · ${d.missingSchoolOrEmail} missing school/email · ${d.notHead} non-head rank`, "dim");
+  const c = d.columns;
+  log(`   Columns used: school='${c.school}', first='${c.first||"(none)"}', last='${c.last||"(none)"}', name='${c.name||"(none)"}', email='${c.email||"(none)"}', rank='${c.rank||"(none)"}'`, "dim");
+  const sample = Object.keys(contacts).filter(k => k !== "__allPool").slice(0, 8);
+  if (sample.length) log(`   Sample loaded schools: ${sample.join(" | ")}`, "dim");
   return contacts;
 }
 
@@ -1492,28 +1511,12 @@ document.getElementById("previewBtn").addEventListener("click", () => {
   const previewArea = document.getElementById("previewArea");
   previewArea.innerHTML = "";
 
-  // Use a silent contacts loader (no log spam)
-  const tabName = `${statePart} ${gender}`;
-  const sheet = state.contactsWorkbook.Sheets[tabName];
-  if (!sheet) {
-    previewArea.innerHTML = `<div class="preview-card error"><div class="pv-error">⚠️ Tab '${tabName}' not found in contacts file. Available: ${state.contactsWorkbook.SheetNames.join(", ")}</div></div>`;
+  // Use the same smart loader as Create Drafts (silent — no log spam).
+  const { contacts, diagnostics: d } = buildContactsMap(state.contactsWorkbook, statePart, gender);
+  if (d.error) {
+    const extra = d.availableTabs ? ` Available: ${d.availableTabs.join(", ")}` : (d.headers ? ` Headers: ${d.headers.join(" | ")}` : "");
+    previewArea.innerHTML = `<div class="preview-card error"><div class="pv-error">⚠️ ${d.error}.${extra}</div></div>`;
     return;
-  }
-
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-  const contacts = {};
-  for (const row of rows) {
-    const school = String(row["schools"] || "").trim();
-    const first = String(row["First Name"] || "").trim();
-    const last = String(row["Last Name"] || "").trim();
-    const email = String(row["Email"] || "").trim();
-    const rank = String(row["Rank"] || "").trim();
-    if (!school || !email) continue;
-    if (!rank.toLowerCase().includes("head")) continue;
-    const key = normalizeSchoolName(school);
-    const coach = { name: `${first} ${last}`.trim(), email };
-    if (!contacts[key]) contacts[key] = [];
-    contacts[key].push(coach);
   }
 
   let matched = 0;
