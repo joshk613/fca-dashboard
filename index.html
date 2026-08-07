@@ -349,11 +349,163 @@
     border-radius: 6px;
     border-left: 3px solid var(--accent);
   }
+  .preview-card.warn {
+    border-left: 3px solid var(--warning);
+  }
+  .preview-card .pv-warn {
+    color: var(--warning);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  /* Batch table */
+  .batch-table {
+    font-size: 13px;
+    margin-top: 12px;
+  }
+  .batch-head, .batch-row {
+    display: grid;
+    grid-template-columns: 1.5fr 1.5fr 0.9fr 0.8fr 30px;
+    gap: 8px;
+    align-items: center;
+  }
+  .batch-head {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0 4px 6px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .batch-row {
+    padding: 6px 4px;
+    border-radius: 4px;
+  }
+  .batch-row:hover { background: rgba(255,255,255,0.02); }
+  .batch-row + .batch-row { margin-top: 2px; }
+  .batch-row input, .batch-row select {
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+  .batch-row .folder-cell {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .batch-row .folder-cell .fcount {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .batch-row .remove {
+    color: var(--error);
+    cursor: pointer;
+    font-size: 15px;
+    background: none;
+    border: none;
+  }
+  .guess {
+    border-color: var(--warning) !important;
+  }
+  .batch-hint {
+    font-size: 11px;
+    color: var(--warning);
+    margin-top: 6px;
+  }
+  .bulk-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .bulk-row .mini {
+    background: var(--panel-light);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .bulk-row .mini:hover { background: var(--border); }
+  /* Toggle */
+  .toggle-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .toggle-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    margin-top: 2px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .toggle-row .tg-label { font-size: 13px; font-weight: 600; }
+  .toggle-row .tg-desc { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
+  /* Progress */
+  .progress-wrap { margin-top: 14px; display: none; }
+  .progress-wrap.on { display: block; }
+  .progress-track {
+    height: 8px;
+    background: var(--bg);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.2s;
+  }
+  .progress-text {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+  /* Preview folder groups */
+  .folder-group {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+  .folder-group > summary {
+    cursor: pointer;
+    padding: 12px 14px;
+    background: var(--bg);
+    font-size: 13px;
+    font-weight: 600;
+    user-select: none;
+  }
+  .folder-group > summary .fg-stats {
+    font-weight: 400;
+    color: var(--text-dim);
+    font-size: 12px;
+    margin-left: 8px;
+  }
+  .folder-group .fg-body { padding: 12px; }
   @media (max-width: 768px) {
     body { flex-direction: column; }
     aside { width: 100%; padding: 16px; }
     main { padding: 20px; }
     .field-row { grid-template-columns: 1fr; }
+    .batch-head { display: none; }
+    .batch-row {
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid var(--border);
+      padding: 10px;
+      margin-bottom: 8px;
+    }
   }
 </style>
 </head>
@@ -431,7 +583,7 @@
         <div class="step-number">3</div>
         <div class="step-title">Contacts File</div>
       </div>
-      <p class="step-desc">Upload your master Excel file. Tabs should be named like "Wisconsin Girls". Columns required: <code>schools</code>, <code>Position</code>, <code>First Name</code>, <code>Last Name</code>, <code>Email</code>, <code>Rank</code>.</p>
+      <p class="step-desc">Upload your master Excel file. Works with the all-states format (one sheet with <code>State</code>, <code>Position</code>, <code>School Name</code>, <code>Email</code>, <code>Rank</code>, <code>Email Provider</code> columns) or the older one-tab-per-state format.</p>
       <div class="drop-zone" id="contactsDrop">
         <div class="icon">📊</div>
         <p><strong>Click or drop</strong> your contacts .xlsx file here</p>
@@ -446,12 +598,17 @@
         <div class="step-number">4</div>
         <div class="step-title">Post Game Report PDFs</div>
       </div>
-      <p class="step-desc">PDF filenames should be like "Arrowhead vs Waukesha West Wolverines.pdf". The opponent is the part before "vs".</p>
+      <p class="step-desc">Drop one folder per team — you can drag many at once. Filenames should look like "Arrowhead vs Waukesha West.pdf"; the opponent is the part <strong>after</strong> "vs". Loose PDFs work too and land in a single group.</p>
       <div class="drop-zone" id="pdfDrop">
-        <div class="icon">📄</div>
-        <p><strong>Click or drop</strong> PDF files here (you can select many at once)</p>
+        <div class="icon">📁</div>
+        <p><strong>Drop folders here</strong>, or click to pick a folder that contains your team folders</p>
       </div>
-      <input type="file" id="pdfInput" accept=".pdf" multiple hidden>
+      <input type="file" id="pdfInput" accept=".pdf" multiple hidden webkitdirectory directory>
+      <input type="file" id="pdfFilesInput" accept=".pdf" multiple hidden>
+      <div class="bulk-row">
+        <button class="mini" id="pickFilesBtn" type="button">Pick loose PDFs instead</button>
+        <button class="mini" id="clearBatchesBtn" type="button">Clear all</button>
+      </div>
       <div class="file-list" id="pdfList"></div>
     </div>
 
@@ -461,21 +618,31 @@
         <div class="step-number">5</div>
         <div class="step-title">Run Details</div>
       </div>
-      <div class="field-row">
+      <div class="toggle-row">
+        <input type="checkbox" id="googleOnly" checked>
         <div>
-          <label>Client School</label>
-          <input type="text" id="client" placeholder="Waukesha West">
+          <div class="tg-label">Only draft to Google-hosted inboxes</div>
+          <div class="tg-desc">Uses the <code>Email Provider</code> column. Coaches on Microsoft, Mimecast, Proofpoint and the rest are skipped and listed separately so you can handle them another way.</div>
         </div>
-        <div>
-          <label>Gender</label>
-          <select id="gender">
-            <option value="Boys">Boys</option>
-            <option value="Girls">Girls</option>
-          </select>
+      </div>
+      <p class="step-desc" id="batchEmpty">Add report folders in Step 4 and each one shows up here with its client, gender and state filled in automatically.</p>
+      <div class="batch-table" id="batchTable" style="display:none;">
+        <div class="batch-head">
+          <div>Folder</div>
+          <div>Client school</div>
+          <div>Gender</div>
+          <div>State</div>
+          <div></div>
         </div>
-        <div>
-          <label>State</label>
-          <input type="text" id="state" placeholder="Wisconsin">
+        <div id="batchRows"></div>
+        <div class="bulk-row">
+          Set all:
+          <button class="mini" data-bulk-gender="Boys" type="button">Boys</button>
+          <button class="mini" data-bulk-gender="Girls" type="button">Girls</button>
+          <span style="margin-left:8px;">State:</span>
+          <input type="text" id="bulkState" placeholder="IA" style="width:70px; padding:4px 8px; font-size:12px;">
+          <button class="mini" id="bulkStateBtn" type="button">Apply</button>
+          <span style="margin-left:8px; color:var(--warning);">Orange outline = auto-detected, worth a glance</span>
         </div>
       </div>
     </div>
@@ -489,7 +656,12 @@
       <div class="actions">
         <button class="btn btn-secondary" id="previewBtn" disabled>Preview Drafts</button>
         <button class="btn" id="runBtn" disabled>Create Gmail Drafts</button>
+        <button class="btn btn-secondary" id="stopBtn" style="display:none;">Stop</button>
         <button class="btn btn-secondary" id="clearLogBtn">Clear Log</button>
+      </div>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText"></div>
       </div>
       <div id="previewArea" style="margin-top:14px;"></div>
       <div class="log" id="log" style="margin-top:14px;"><span class="log-dim">Log output will appear here...</span></div>
@@ -531,20 +703,59 @@ const STRIP_WORDS = [
   "high school", "preparatory school", "preparatory", "prep school",
   "prep", "academy", "hs", "school", "senior"
 ];
+// Provider values (from the "Email Provider" column) that count as Google-hosted.
+const GOOGLE_PROVIDERS = ["google"];
+// Refresh the OAuth token this long after it was issued. Google tokens last ~1hr;
+// a 500-draft run will cross that boundary, so we get ahead of it.
+const TOKEN_MAX_AGE_MS = 45 * 60 * 1000;
+// Pause between draft creations to stay under Gmail's per-user rate limit.
+const DRAFT_DELAY_MS = 120;
+
+const US_STATES = {
+  alabama:"AL", alaska:"AK", arizona:"AZ", arkansas:"AR", california:"CA",
+  colorado:"CO", connecticut:"CT", delaware:"DE", florida:"FL", georgia:"GA",
+  hawaii:"HI", idaho:"ID", illinois:"IL", indiana:"IN", iowa:"IA",
+  kansas:"KS", kentucky:"KY", louisiana:"LA", maine:"ME", maryland:"MD",
+  massachusetts:"MA", michigan:"MI", minnesota:"MN", mississippi:"MS", missouri:"MO",
+  montana:"MT", nebraska:"NE", nevada:"NV", "new hampshire":"NH", "new jersey":"NJ",
+  "new mexico":"NM", "new york":"NY", "north carolina":"NC", "north dakota":"ND", ohio:"OH",
+  oklahoma:"OK", oregon:"OR", pennsylvania:"PA", "rhode island":"RI", "south carolina":"SC",
+  "south dakota":"SD", tennessee:"TN", texas:"TX", utah:"UT", vermont:"VT",
+  virginia:"VA", washington:"WA", "west virginia":"WV", wisconsin:"WI", wyoming:"WY",
+  "district of columbia":"DC"
+};
+const ABBR_TO_STATE = Object.fromEntries(Object.entries(US_STATES).map(([k, v]) => [v, k]));
+
+// "Iowa" / "iowa" / "IA" / "ia" → "IA". Unknown input is passed through uppercased.
+function toStateCode(input) {
+  const s = String(input || "").trim();
+  if (!s) return "";
+  if (/^[A-Za-z]{2}$/.test(s) && ABBR_TO_STATE[s.toUpperCase()]) return s.toUpperCase();
+  const hit = US_STATES[s.toLowerCase()];
+  return hit || s.toUpperCase();
+}
 
 // ─────────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────────
 const state = {
   accessToken: null,
+  tokenIssuedAt: 0,
   userEmail: null,
   contactsWorkbook: null,
   contactsFileName: null,
-  pdfFiles: [],
+  // Parsed contacts source. format: "flat" (all-states single sheet) | "legacy" (tab per state+gender)
+  contactsSrc: null,
+  contactsCache: new Map(),  // `${stateCode}|${gender}` → { contacts, diagnostics }
+  batches: [],               // [{ id, folder, files: [File], client, gender, stateCode, guessed: {} }]
   tokenClient: null,
+  pendingTokenResolve: null, // set while an OAuth token request is in flight
+  abortRun: false,
   draftQueue: [],          // entries created in the most recent run, awaiting sheet sync
   sendLaterLabelId: null,  // cached Gmail label ID for "Send Later"
 };
+
+let batchSeq = 0;
 
 // ─────────────────────────────────────────────
 // PERSISTENCE
@@ -590,18 +801,184 @@ function normalizeSchoolName(name) {
 // ─────────────────────────────────────────────
 // CONTACTS LOADING (from .xlsx)
 // ─────────────────────────────────────────────
-// Pure: build a contacts map from the workbook + tab. Does not log.
-// Returns { contacts, diagnostics }.
-//   diagnostics: { tabName, error?, availableTabs?, total, missingSchoolOrEmail,
-//                  notHead, columns: { school, first, last, name, email, rank } }
-function buildContactsMap(workbook, statePart, gender) {
-  const tabName = `${statePart} ${gender}`;
-  const diag = { tabName, total: 0, missingSchoolOrEmail: 0, notHead: 0, columns: {} };
+// Find a header by trying aliases in order. Earlier aliases win, which matters:
+// the all-states sheet has both "School Name" (the name) and "Schools" (a URL).
+function makeFindCol(headers) {
+  return (...aliases) => {
+    for (const alias of aliases) {
+      const hit = headers.find(h => String(h).toLowerCase().trim() === alias.toLowerCase().trim());
+      if (hit) return hit;
+    }
+    return null;
+  };
+}
 
-  const sheet = workbook.Sheets[tabName];
+function splitName(first, last, fullName) {
+  if ((!first && !last) && fullName) {
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return { first: parts[0], last: parts.slice(1).join(" ") };
+    if (parts.length === 1) return { first: "", last: parts[0] };
+  }
+  return { first, last };
+}
+
+function isGoogleProvider(provider) {
+  return GOOGLE_PROVIDERS.includes(String(provider || "").trim().toLowerCase());
+}
+
+// Parse an uploaded workbook once. Detects which format it is and, for the
+// all-states format, materializes the rows so repeated lookups are cheap.
+// Returns the object stored at state.contactsSrc.
+function parseContactsWorkbook(workbook) {
+  // Look for a sheet shaped like the all-states export: a State column plus an Email column.
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+    if (!rows.length) continue;
+
+    const headers = Object.keys(rows[0]);
+    const findCol = makeFindCol(headers);
+    const colState = findCol("State", "st");
+    const colEmail = findCol("Email", "email address", "e-mail");
+    if (!colState || !colEmail) continue;
+
+    const cols = {
+      state:    colState,
+      email:    colEmail,
+      school:   findCol("School Name", "school", "team"),
+      first:    findCol("First Name", "first", "firstname", "first_name"),
+      last:     findCol("Last Name", "last", "lastname", "last_name"),
+      name:     findCol("Coach Name", "Coach", "Name", "Full Name", "coach_name"),
+      rank:     findCol("Rank", "title", "level"),
+      position: findCol("Position", "sport", "team type"),
+      provider: findCol("Email Provider", "Provider", "mx provider")
+    };
+    if (!cols.school) continue;
+
+    const stateCodes = [...new Set(rows.map(r => toStateCode(r[colState])).filter(Boolean))].sort();
+    return {
+      format: "flat",
+      sheetName,
+      rows,
+      cols,
+      headers,
+      stateCodes,
+      hasProvider: !!cols.provider,
+      sheetNames: workbook.SheetNames
+    };
+  }
+
+  // Nothing matched — treat it as the old one-tab-per-state-and-gender workbook.
+  return {
+    format: "legacy",
+    workbook,
+    stateCodes: [],
+    hasProvider: false,
+    sheetNames: workbook.SheetNames
+  };
+}
+
+// Build the school → coaches map for one state + gender. Does not log, does not
+// filter by provider — each coach carries `provider`/`isGoogle` so callers can
+// report precisely on why someone was left out.
+function buildContactsMap(statePart, gender) {
+  const cacheKey = `${toStateCode(statePart)}|${gender}`;
+  if (state.contactsCache.has(cacheKey)) return state.contactsCache.get(cacheKey);
+
+  const src = state.contactsSrc;
+  const result = !src
+    ? { contacts: {}, diagnostics: { error: "No contacts file loaded", total: 0 } }
+    : (src.format === "flat"
+        ? buildFromFlat(src, statePart, gender)
+        : buildFromLegacyTab(src, statePart, gender));
+
+  state.contactsCache.set(cacheKey, result);
+  return result;
+}
+
+function buildFromFlat(src, statePart, gender) {
+  const wantState = toStateCode(statePart);
+  const wantGender = String(gender || "").toLowerCase();
+  const c = src.cols;
+  const diag = {
+    format: "flat", sheetName: src.sheetName, stateCode: wantState, gender,
+    total: 0, inState: 0, inGender: 0, missingSchoolOrEmail: 0, notHead: 0,
+    googleCoaches: 0, nonGoogleCoaches: 0, columns: c, headers: src.headers,
+    availableStates: src.stateCodes
+  };
+
+  if (!wantState) {
+    diag.error = "No state set";
+    return { contacts: {}, diagnostics: diag };
+  }
+  if (!src.stateCodes.includes(wantState)) {
+    diag.error = `State '${wantState}' is not in this workbook`;
+    return { contacts: {}, diagnostics: diag };
+  }
+
+  const headPool = {};
+  const allPool = {};
+
+  for (const row of src.rows) {
+    diag.total++;
+    if (toStateCode(row[c.state]) !== wantState) continue;
+    diag.inState++;
+
+    // Gender now lives in Position ("Boys Basketball", "Girls Basketball Jv Coach", …).
+    if (c.position && wantGender) {
+      const pos = String(row[c.position] || "").toLowerCase();
+      if (!pos.startsWith(wantGender)) continue;
+    }
+    diag.inGender++;
+
+    const school = String(row[c.school] || "").trim();
+    const email = String(row[c.email] || "").trim();
+    if (!school || !email) { diag.missingSchoolOrEmail++; continue; }
+
+    const { first, last } = splitName(
+      c.first ? String(row[c.first] || "").trim() : "",
+      c.last ? String(row[c.last] || "").trim() : "",
+      c.name ? String(row[c.name] || "").trim() : ""
+    );
+    const rank = c.rank ? String(row[c.rank] || "").trim() : "";
+    const provider = c.provider ? String(row[c.provider] || "").trim() : "";
+    const google = isGoogleProvider(provider);
+    if (google) diag.googleCoaches++; else diag.nonGoogleCoaches++;
+
+    const key = normalizeSchoolName(school);
+    const coach = {
+      name: `${first} ${last}`.trim() || email,
+      first, last, email,
+      provider: provider || "Unknown",
+      isGoogle: google
+    };
+
+    (allPool[key] = allPool[key] || []).push(coach);
+    if (rank.toLowerCase().includes("head") || !rank) {
+      (headPool[key] = headPool[key] || []).push(coach);
+    } else {
+      diag.notHead++;
+    }
+  }
+
+  const finalPool = Object.keys(headPool).length ? headPool : allPool;
+  const contacts = { ...finalPool };
+  contacts.__allPool = allPool;
+  return { contacts, diagnostics: diag };
+}
+
+// Old format: one tab per "<State> <Gender>", e.g. "Wisconsin Girls".
+function buildFromLegacyTab(src, statePart, gender) {
+  const tabName = `${statePart} ${gender}`;
+  const diag = {
+    format: "legacy", tabName, total: 0, missingSchoolOrEmail: 0, notHead: 0,
+    googleCoaches: 0, nonGoogleCoaches: 0, columns: {}
+  };
+
+  const sheet = src.workbook.Sheets[tabName];
   if (!sheet) {
     diag.error = `Tab '${tabName}' not found`;
-    diag.availableTabs = workbook.SheetNames;
+    diag.availableTabs = src.sheetNames;
     return { contacts: {}, diagnostics: diag };
   }
 
@@ -611,62 +988,57 @@ function buildContactsMap(workbook, statePart, gender) {
     return { contacts: {}, diagnostics: diag };
   }
 
-  const headers = Object.keys(rows[0] || {});
-  const findCol = (...aliases) => {
-    for (const alias of aliases) {
-      const hit = headers.find(h => h.toLowerCase().trim() === alias.toLowerCase().trim());
-      if (hit) return hit;
-    }
-    return null;
+  const headers = Object.keys(rows[0]);
+  const findCol = makeFindCol(headers);
+  const c = {
+    school: findCol("school name", "school", "team", "schools"),
+    first:  findCol("First Name", "first", "firstname", "first_name"),
+    last:   findCol("Last Name", "last", "lastname", "last_name"),
+    name:   findCol("Coach Name", "Coach", "Name", "Full Name", "coach_name"),
+    email:  findCol("Email", "email address", "e-mail"),
+    rank:   findCol("Rank", "title", "level", "Position"),
+    provider: findCol("Email Provider", "Provider")
   };
-  const colSchool = findCol("school name", "school", "team", "schools");
-  const colFirst  = findCol("First Name", "first", "firstname", "first_name");
-  const colLast   = findCol("Last Name", "last", "lastname", "last_name");
-  const colName   = findCol("Coach Name", "Coach", "Name", "Full Name", "coach_name");
-  const colEmail  = findCol("Email", "email address", "e-mail");
-  const colRank   = findCol("Rank", "title", "level", "Position");
-  diag.columns = { school: colSchool, first: colFirst, last: colLast, name: colName, email: colEmail, rank: colRank };
+  diag.columns = c;
   diag.headers = headers;
 
-  if (!colSchool) {
+  if (!c.school) {
     diag.error = `Could not find a 'schools' column`;
     return { contacts: {}, diagnostics: diag };
   }
 
   const headPool = {};
-  const allPool  = {};
+  const allPool = {};
 
   for (const row of rows) {
     diag.total++;
-    const school = String(row[colSchool] || "").trim();
-    let first    = colFirst ? String(row[colFirst] || "").trim() : "";
-    let last     = colLast  ? String(row[colLast]  || "").trim() : "";
-    const fullName = colName ? String(row[colName] || "").trim() : "";
-    const email  = colEmail ? String(row[colEmail] || "").trim() : "";
-    const rank   = colRank  ? String(row[colRank]  || "").trim() : "";
-
+    const school = String(row[c.school] || "").trim();
+    const email = c.email ? String(row[c.email] || "").trim() : "";
     if (!school || !email) { diag.missingSchoolOrEmail++; continue; }
 
-    if ((!first && !last) && fullName) {
-      const parts = fullName.split(/\s+/).filter(Boolean);
-      if (parts.length >= 2) {
-        first = parts[0];
-        last  = parts.slice(1).join(" ");
-      } else if (parts.length === 1) {
-        last = parts[0];
-      }
-    }
+    const { first, last } = splitName(
+      c.first ? String(row[c.first] || "").trim() : "",
+      c.last ? String(row[c.last] || "").trim() : "",
+      c.name ? String(row[c.name] || "").trim() : ""
+    );
+    const rank = c.rank ? String(row[c.rank] || "").trim() : "";
+    const provider = c.provider ? String(row[c.provider] || "").trim() : "";
+    // Without a provider column every coach is treated as sendable, so the
+    // Google-only toggle can't silently wipe out an older workbook.
+    const google = c.provider ? isGoogleProvider(provider) : true;
+    if (google) diag.googleCoaches++; else diag.nonGoogleCoaches++;
 
-    const fullDisplay = `${first} ${last}`.trim();
     const key = normalizeSchoolName(school);
-    const coach = { name: fullDisplay || email, first, last, email };
+    const coach = {
+      name: `${first} ${last}`.trim() || email,
+      first, last, email,
+      provider: provider || "Unknown",
+      isGoogle: google
+    };
 
-    if (!allPool[key]) allPool[key] = [];
-    allPool[key].push(coach);
-
+    (allPool[key] = allPool[key] || []).push(coach);
     if (rank.toLowerCase().includes("head") || !rank) {
-      if (!headPool[key]) headPool[key] = [];
-      headPool[key].push(coach);
+      (headPool[key] = headPool[key] || []).push(coach);
     } else {
       diag.notHead++;
     }
@@ -679,30 +1051,21 @@ function buildContactsMap(workbook, statePart, gender) {
 }
 
 // Logging wrapper used by Create Drafts. Writes diagnostics to the main log.
-function loadContactsFromWorkbook(workbook, statePart, gender) {
-  const { contacts, diagnostics: d } = buildContactsMap(workbook, statePart, gender);
-  log(`📋 Looking up tab: '${d.tabName}'`, "info");
+function loadContactsFor(statePart, gender) {
+  const { contacts, diagnostics: d } = buildContactsMap(statePart, gender);
 
-  if (d.error && d.availableTabs) {
-    log(`⚠️  ${d.error}. Available tabs: ${d.availableTabs.join(", ")}`, "error");
-    return contacts;
-  }
-  if (d.error === `No data in tab '${d.tabName}'`) {
-    log(`⚠️  No data in tab '${d.tabName}'.`, "warning");
-    return contacts;
-  }
-  if (d.error === `Could not find a 'schools' column`) {
-    log(`⚠️  Could not find a 'schools' column. Headers found: ${(d.headers || []).join(" | ")}`, "error");
+  if (d.error) {
+    let extra = "";
+    if (d.availableTabs) extra = ` Available tabs: ${d.availableTabs.join(", ")}`;
+    else if (d.availableStates) extra = ` States in this file: ${d.availableStates.join(", ")}`;
+    else if (d.headers) extra = ` Headers found: ${d.headers.join(" | ")}`;
+    log(`   ⚠️  ${d.error}.${extra}`, "error");
     return contacts;
   }
 
   const schoolCount = Object.keys(contacts).filter(k => k !== "__allPool").length;
-  log(`✅ Loaded coaches for ${schoolCount} schools from '${d.tabName}'`, "success");
-  log(`   Diagnostic: ${d.total} rows · ${d.missingSchoolOrEmail} missing school/email · ${d.notHead} non-head rank`, "dim");
-  const c = d.columns;
-  log(`   Columns used: school='${c.school}', first='${c.first||"(none)"}', last='${c.last||"(none)"}', name='${c.name||"(none)"}', email='${c.email||"(none)"}', rank='${c.rank||"(none)"}'`, "dim");
-  const sample = Object.keys(contacts).filter(k => k !== "__allPool").slice(0, 8);
-  if (sample.length) log(`   Sample loaded schools: ${sample.join(" | ")}`, "dim");
+  const where = d.format === "flat" ? `${d.stateCode} ${d.gender}` : `'${d.tabName}'`;
+  log(`   📋 ${schoolCount} schools loaded for ${where} · ${d.googleCoaches} Google / ${d.nonGoogleCoaches} other`, "dim");
   return contacts;
 }
 
@@ -800,18 +1163,29 @@ function fillTemplate(subjectTpl, template, coaches, opponent, client, gender, s
 // ─────────────────────────────────────────────
 // EXTRACT OPPONENT FROM FILENAME
 // ─────────────────────────────────────────────
-function extractOpponent(filename) {
+function stripReportSuffix(filename) {
   let name = filename.replace(/\.pdf$/i, "");
   // Strip common suffixes like "— Postgame Report", "- Post Game Report", etc.
   name = name.replace(/\s*[—\-–]\s*post\s*game\s*report.*$/i, "");
   name = name.replace(/\s*[—\-–]\s*postgame\s*report.*$/i, "");
   name = name.replace(/\s*[—\-–]\s*full\s*post\s*game\s*report.*$/i, "");
+  return name.trim();
+}
 
+function extractOpponent(filename) {
+  const name = stripReportSuffix(filename);
   if (name.includes(" vs ")) {
     // Opponent is the part AFTER "vs" (e.g. "Caston vs Argos" → "Argos")
     return name.split(" vs ").slice(1).join(" vs ").trim();
   }
-  return name.trim();
+  return name;
+}
+
+// The client is the left side of "vs" — constant across a team's folder.
+function extractClientSide(filename) {
+  const name = stripReportSuffix(filename);
+  if (name.includes(" vs ")) return name.split(" vs ")[0].trim();
+  return "";
 }
 
 // ─────────────────────────────────────────────
@@ -942,11 +1316,20 @@ function initTokenClient() {
     client_id: clientId,
     scope: SCOPES,
     callback: async (response) => {
+      const pending = state.pendingTokenResolve;
+      state.pendingTokenResolve = null;
+
       if (response.error) {
         log(`❌ Auth error: ${response.error}`, "error");
+        if (pending) pending.reject(new Error(response.error));
         return;
       }
       state.accessToken = response.access_token;
+      state.tokenIssuedAt = Date.now();
+
+      // A mid-run refresh shouldn't re-fetch the profile or re-log the sign-in.
+      if (pending) { pending.resolve(response.access_token); return; }
+
       try {
         state.userEmail = await fetchUserEmail();
         updateAuthUI(true);
@@ -958,6 +1341,77 @@ function initTokenClient() {
       }
     }
   });
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Ask GIS for a new access token without prompting. Works as long as the user
+// still has a Google session; if it fails they'll need to click Sign in again.
+function requestTokenSilently() {
+  return new Promise((resolve, reject) => {
+    if (!state.tokenClient) return reject(new Error("Not signed in"));
+    if (state.pendingTokenResolve) return reject(new Error("Token request already in flight"));
+    state.pendingTokenResolve = { resolve, reject };
+    try {
+      state.tokenClient.requestAccessToken({ prompt: "" });
+    } catch (e) {
+      state.pendingTokenResolve = null;
+      reject(e);
+    }
+    setTimeout(() => {
+      if (state.pendingTokenResolve && state.pendingTokenResolve.reject === reject) {
+        state.pendingTokenResolve = null;
+        reject(new Error("Token refresh timed out"));
+      }
+    }, 30000);
+  });
+}
+
+// Long runs outlive the ~1hr token, so refresh before we get close to the edge.
+async function ensureFreshToken() {
+  if (!state.tokenIssuedAt) return;
+  if (Date.now() - state.tokenIssuedAt < TOKEN_MAX_AGE_MS) return;
+  log("🔑 Refreshing Google access token...", "dim");
+  try {
+    await requestTokenSilently();
+    log("🔑 Token refreshed.", "dim");
+  } catch (e) {
+    log(`⚠️  Could not refresh token automatically: ${e.message}. If drafts start failing, sign in again.`, "warning");
+  }
+}
+
+// Wrap a Gmail call with backoff on rate limits and one retry after a 401.
+async function withRetry(fn, { label = "request", maxAttempts = 5 } = {}) {
+  let attempt = 0;
+  let refreshed = false;
+
+  while (true) {
+    attempt++;
+    try {
+      return await fn();
+    } catch (e) {
+      const msg = String(e.message || "");
+      const status = (msg.match(/\((\d{3})\)/) || msg.match(/ (\d{3}):/) || [])[1];
+      const rateLimited = status === "429"
+        || (status === "403" && /rateLimitExceeded|userRateLimitExceeded|quotaExceeded/i.test(msg));
+      const serverError = status && status.startsWith("5");
+      const unauthorized = status === "401";
+
+      if (unauthorized && !refreshed) {
+        refreshed = true;
+        log(`   🔑 Token rejected — refreshing and retrying ${label}...`, "dim");
+        await requestTokenSilently();
+        continue;
+      }
+      if ((rateLimited || serverError) && attempt < maxAttempts) {
+        const wait = Math.min(32000, 1000 * 2 ** (attempt - 1)) + Math.random() * 500;
+        log(`   ⏳ Rate limited on ${label} — waiting ${(wait / 1000).toFixed(1)}s (attempt ${attempt}/${maxAttempts})`, "warning");
+        await sleep(wait);
+        continue;
+      }
+      throw e;
+    }
+  }
 }
 
 function updateAuthUI(signedIn) {
@@ -1000,9 +1454,12 @@ document.getElementById("signOutBtn").addEventListener("click", () => {
 // ─────────────────────────────────────────────
 // FILE UPLOAD HANDLERS
 // ─────────────────────────────────────────────
-function setupDropZone(dropEl, inputEl, onFiles) {
+function setupDropZone(dropEl, inputEl, onFiles, onEntries) {
   dropEl.addEventListener("click", () => inputEl.click());
-  inputEl.addEventListener("change", e => onFiles([...e.target.files]));
+  inputEl.addEventListener("change", e => {
+    onFiles([...e.target.files]);
+    e.target.value = "";   // let the same folder be picked twice in a row
+  });
   dropEl.addEventListener("dragover", e => {
     e.preventDefault();
     dropEl.classList.add("dragover");
@@ -1011,8 +1468,57 @@ function setupDropZone(dropEl, inputEl, onFiles) {
   dropEl.addEventListener("drop", e => {
     e.preventDefault();
     dropEl.classList.remove("dragover");
+    if (onEntries && e.dataTransfer.items) {
+      // webkitGetAsEntry() must be called synchronously — the items list is
+      // invalidated as soon as this handler yields.
+      const entries = [];
+      for (const item of e.dataTransfer.items) {
+        const entry = item.webkitGetAsEntry && item.webkitGetAsEntry();
+        if (entry) entries.push(entry);
+      }
+      if (entries.length) { onEntries(entries); return; }
+    }
     onFiles([...e.dataTransfer.files]);
   });
+}
+
+// Walk a dropped directory entry, collecting { file, path } for every PDF inside.
+function readEntryTree(entry, prefix, out) {
+  return new Promise(resolve => {
+    if (entry.isFile) {
+      entry.file(file => {
+        if (/\.pdf$/i.test(file.name) && !file.name.startsWith(".")) {
+          out.push({ file, path: prefix + file.name });
+        }
+        resolve();
+      }, () => resolve());
+      return;
+    }
+    if (!entry.isDirectory) return resolve();
+
+    const dirPath = prefix + entry.name + "/";
+    const reader = entry.createReader();
+    const kids = [];
+    // readEntries() returns at most 100 per call, so keep going until it's empty.
+    const readMore = () => {
+      reader.readEntries(async batch => {
+        if (!batch.length) {
+          for (const kid of kids) await readEntryTree(kid, dirPath, out);
+          return resolve();
+        }
+        kids.push(...batch);
+        readMore();
+      }, () => resolve());
+    };
+    readMore();
+  });
+}
+
+// Group by the file's immediate parent directory. That handles both dropping 25
+// team folders and picking one parent folder that contains them.
+function folderOf(path) {
+  const parts = String(path || "").split("/").filter(Boolean);
+  return parts.length >= 2 ? parts[parts.length - 2] : "";
 }
 
 setupDropZone(
@@ -1025,37 +1531,205 @@ setupDropZone(
       const buf = await file.arrayBuffer();
       state.contactsWorkbook = XLSX.read(buf, { type: "array" });
       state.contactsFileName = file.name;
+      state.contactsSrc = parseContactsWorkbook(state.contactsWorkbook);
+      state.contactsCache.clear();
+
+      const src = state.contactsSrc;
+      if (src.format === "flat") {
+        log(`✅ Loaded ${file.name} — all-states format, ${src.rows.length} contacts across ${src.stateCodes.length} states (${src.stateCodes.join(", ")})`, "success");
+        if (!src.hasProvider) {
+          log(`⚠️  No "Email Provider" column — the Google-only filter will pass everyone through.`, "warning");
+        }
+      } else {
+        log(`✅ Loaded ${file.name} — legacy tab format (${src.sheetNames.length} tabs)`, "success");
+      }
+      // Re-run detection now that we can look states up.
+      state.batches.forEach(b => autoDetectBatch(b));
       renderContactsList();
+      renderBatchTable();
       validateRunButton();
-      log(`✅ Loaded contacts file: ${file.name} (${state.contactsWorkbook.SheetNames.length} tabs)`, "success");
     } catch (e) {
       log(`❌ Could not read file: ${e.message}`, "error");
     }
   }
 );
 
+async function ingestItems(items) {
+  const pdfs = items.filter(it => /\.pdf$/i.test(it.file.name));
+  if (!pdfs.length) {
+    log("⚠️  No PDFs found in what you dropped.", "warning");
+    return;
+  }
+
+  const groups = new Map();
+  for (const it of pdfs) {
+    const folder = folderOf(it.path) || "(loose PDFs)";
+    if (!groups.has(folder)) groups.set(folder, []);
+    groups.get(folder).push(it.file);
+  }
+
+  for (const [folder, files] of groups) {
+    const existing = state.batches.find(b => b.folder === folder);
+    if (existing) {
+      const seen = new Set(existing.files.map(f => f.name));
+      existing.files.push(...files.filter(f => !seen.has(f.name)));
+      autoDetectBatch(existing);
+    } else {
+      const batch = {
+        id: ++batchSeq, folder, files,
+        client: "", gender: "", stateCode: "", guessed: {}
+      };
+      autoDetectBatch(batch);
+      state.batches.push(batch);
+    }
+  }
+
+  log(`📁 ${groups.size} folder(s) added · ${pdfs.length} PDF(s) total`, "info");
+  renderBatchTable();
+  renderPdfList();
+  validateRunButton();
+}
+
 setupDropZone(
   document.getElementById("pdfDrop"),
   document.getElementById("pdfInput"),
   (files) => {
-    const pdfs = files.filter(f => f.name.toLowerCase().endsWith(".pdf"));
-    state.pdfFiles = [...state.pdfFiles, ...pdfs];
-    renderPdfList();
-    validateRunButton();
+    ingestItems(files.map(f => ({ file: f, path: f.webkitRelativePath || f.name })));
+  },
+  async (entries) => {
+    const out = [];
+    for (const entry of entries) await readEntryTree(entry, "", out);
+    ingestItems(out);
   }
 );
 
+// Escape hatch for people who'd rather select loose PDFs than a folder.
+document.getElementById("pickFilesBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("pdfFilesInput").click();
+});
+document.getElementById("pdfFilesInput").addEventListener("change", (e) => {
+  ingestItems([...e.target.files].map(f => ({ file: f, path: f.name })));
+  e.target.value = "";
+});
+document.getElementById("clearBatchesBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  state.batches = [];
+  renderBatchTable();
+  renderPdfList();
+  validateRunButton();
+});
+
+// ─────────────────────────────────────────────
+// AUTO-DETECT CLIENT / STATE / GENDER PER FOLDER
+// ─────────────────────────────────────────────
+// The client is whatever sits left of "vs" in most of a folder's filenames.
+function detectClient(files) {
+  const counts = {};
+  for (const f of files) {
+    const c = extractClientSide(f.name);
+    if (c) counts[c] = (counts[c] || 0) + 1;
+  }
+  let best = "", bestN = 0;
+  for (const [name, n] of Object.entries(counts)) {
+    if (n > bestN) { best = name; bestN = n; }
+  }
+  // Needs to be the majority pattern, or we're guessing off one odd filename.
+  if (best && bestN / files.length >= 0.6) return { client: best, confident: true };
+  return { client: best, confident: false };
+}
+
+function detectStateForSchool(schoolName) {
+  const src = state.contactsSrc;
+  if (!src || src.format !== "flat" || !schoolName) return "";
+  const idx = src.schoolStateIndex || buildSchoolStateIndex(src);
+  const target = normalizeSchoolName(schoolName);
+
+  const exact = idx.get(target);
+  if (exact && exact.size === 1) return [...exact][0];
+  if (exact) return "";   // same school name in several states — make them choose
+
+  // Fall back to a unique whole-word prefix match, same rule as coach matching.
+  const words = target.split(" ").filter(Boolean);
+  const hits = new Set();
+  for (const [key, states] of idx) {
+    const kw = key.split(" ").filter(Boolean);
+    if (words.every((w, i) => kw[i] === w)) states.forEach(s => hits.add(s));
+    if (hits.size > 1) return "";
+  }
+  return hits.size === 1 ? [...hits][0] : "";
+}
+
+function buildSchoolStateIndex(src) {
+  const idx = new Map();
+  for (const row of src.rows) {
+    const school = String(row[src.cols.school] || "").trim();
+    if (!school) continue;
+    const key = normalizeSchoolName(school);
+    if (!idx.has(key)) idx.set(key, new Set());
+    idx.get(key).add(toStateCode(row[src.cols.state]));
+  }
+  src.schoolStateIndex = idx;
+  return idx;
+}
+
+function detectGender(folderName) {
+  const m = String(folderName || "").match(/\b(boys?|girls?|mens?|womens?|lady|ladies)\b/i);
+  if (!m) return "";
+  const w = m[1].toLowerCase();
+  if (/^(girl|girls|women|womens|lady|ladies)$/.test(w)) return "Girls";
+  return "Boys";
+}
+
+// Fills only the fields the user hasn't set by hand.
+function autoDetectBatch(batch) {
+  batch.guessed = batch.guessed || {};
+
+  if (!batch.client || batch.guessed.client) {
+    const { client, confident } = detectClient(batch.files);
+    if (client) {
+      batch.client = client;
+      batch.guessed.client = true;
+      batch.clientLowConfidence = !confident;
+    }
+  }
+  if (!batch.stateCode || batch.guessed.stateCode) {
+    const code = detectStateForSchool(batch.client);
+    if (code) {
+      batch.stateCode = code;
+      batch.guessed.stateCode = true;
+    }
+  }
+  if (!batch.gender || batch.guessed.gender) {
+    const g = detectGender(batch.folder);
+    if (g) {
+      batch.gender = g;
+      batch.guessed.gender = true;
+    }
+  }
+  return batch;
+}
+
+// ─────────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────────
 function renderContactsList() {
   const el = document.getElementById("contactsList");
   el.innerHTML = "";
   if (!state.contactsFileName) return;
+  const src = state.contactsSrc;
+  const desc = src && src.format === "flat"
+    ? `${src.rows.length} contacts · ${src.stateCodes.length} states`
+    : `${state.contactsWorkbook.SheetNames.length} tabs`;
   const item = document.createElement("div");
   item.className = "file-item";
-  item.innerHTML = `<span>📊 ${state.contactsFileName} (${state.contactsWorkbook.SheetNames.length} tabs)</span>
+  item.innerHTML = `<span>📊 ${escapeHtml(state.contactsFileName)} (${desc})</span>
     <button class="remove" title="Remove">✕</button>`;
   item.querySelector(".remove").addEventListener("click", () => {
     state.contactsWorkbook = null;
     state.contactsFileName = null;
+    state.contactsSrc = null;
+    state.contactsCache.clear();
     renderContactsList();
     validateRunButton();
   });
@@ -1065,45 +1739,135 @@ function renderContactsList() {
 function renderPdfList() {
   const el = document.getElementById("pdfList");
   el.innerHTML = "";
-  state.pdfFiles.forEach((f, idx) => {
-    const item = document.createElement("div");
-    item.className = "file-item";
-    item.innerHTML = `<span>📄 ${f.name}</span>
-      <button class="remove" title="Remove">✕</button>`;
-    item.querySelector(".remove").addEventListener("click", () => {
-      state.pdfFiles.splice(idx, 1);
+  const total = state.batches.reduce((n, b) => n + b.files.length, 0);
+  if (!total) return;
+  const item = document.createElement("div");
+  item.className = "file-item";
+  item.innerHTML = `<span>📄 ${total} PDF(s) across ${state.batches.length} folder(s)</span>`;
+  el.appendChild(item);
+}
+
+function renderBatchTable() {
+  const table = document.getElementById("batchTable");
+  const empty = document.getElementById("batchEmpty");
+  const rowsEl = document.getElementById("batchRows");
+
+  if (!state.batches.length) {
+    table.style.display = "none";
+    empty.style.display = "block";
+    return;
+  }
+  table.style.display = "block";
+  empty.style.display = "none";
+  rowsEl.innerHTML = "";
+
+  state.batches.forEach(batch => {
+    const row = document.createElement("div");
+    row.className = "batch-row";
+
+    const stateHint = state.contactsSrc && state.contactsSrc.format === "flat"
+      ? state.contactsSrc.stateCodes.join(", ") : "";
+
+    row.innerHTML = `
+      <div class="folder-cell" title="${escapeHtml(batch.folder)}">
+        📁 ${escapeHtml(batch.folder)}<br><span class="fcount">${batch.files.length} PDF(s)</span>
+      </div>
+      <div><input type="text" class="b-client ${batch.guessed.client ? "guess" : ""}" value="${escapeHtml(batch.client)}" placeholder="Client school"></div>
+      <div>
+        <select class="b-gender ${batch.guessed.gender ? "guess" : ""}">
+          <option value="">—</option>
+          <option value="Boys">Boys</option>
+          <option value="Girls">Girls</option>
+        </select>
+      </div>
+      <div><input type="text" class="b-state ${batch.guessed.stateCode ? "guess" : ""}" value="${escapeHtml(batch.stateCode)}" placeholder="ST" title="${escapeHtml(stateHint)}"></div>
+      <div><button class="remove" title="Remove folder">✕</button></div>
+    `;
+
+    const clientEl = row.querySelector(".b-client");
+    const genderEl = row.querySelector(".b-gender");
+    const stateEl = row.querySelector(".b-state");
+    genderEl.value = batch.gender || "";
+
+    clientEl.addEventListener("input", () => {
+      batch.client = clientEl.value.trim();
+      batch.guessed.client = false;
+      clientEl.classList.remove("guess");
+      validateRunButton();
+    });
+    genderEl.addEventListener("change", () => {
+      batch.gender = genderEl.value;
+      batch.guessed.gender = false;
+      genderEl.classList.remove("guess");
+      validateRunButton();
+    });
+    stateEl.addEventListener("input", () => {
+      batch.stateCode = toStateCode(stateEl.value);
+      batch.guessed.stateCode = false;
+      stateEl.classList.remove("guess");
+      validateRunButton();
+    });
+    stateEl.addEventListener("blur", () => {
+      stateEl.value = batch.stateCode;
+    });
+    row.querySelector(".remove").addEventListener("click", () => {
+      state.batches = state.batches.filter(b => b.id !== batch.id);
+      renderBatchTable();
       renderPdfList();
       validateRunButton();
     });
-    el.appendChild(item);
+
+    rowsEl.appendChild(row);
+
+    if (batch.clientLowConfidence && batch.client) {
+      const hint = document.createElement("div");
+      hint.className = "batch-hint";
+      hint.textContent = `⚠️ "${batch.folder}" — filenames disagree on the client school. Double-check this one.`;
+      rowsEl.appendChild(hint);
+    }
   });
 }
+
+document.querySelectorAll("[data-bulk-gender]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    state.batches.forEach(b => { b.gender = btn.dataset.bulkGender; b.guessed.gender = false; });
+    renderBatchTable();
+    validateRunButton();
+  });
+});
+document.getElementById("bulkStateBtn").addEventListener("click", () => {
+  const code = toStateCode(document.getElementById("bulkState").value);
+  if (!code) return;
+  state.batches.forEach(b => { b.stateCode = code; b.guessed.stateCode = false; });
+  renderBatchTable();
+  validateRunButton();
+});
 
 // ─────────────────────────────────────────────
 // VALIDATE RUN BUTTON
 // ─────────────────────────────────────────────
-function validateRunButton() {
-  const ready = state.accessToken
-    && state.contactsWorkbook
-    && state.pdfFiles.length > 0
-    && document.getElementById("emailTemplate").value.trim()
-    && document.getElementById("client").value.trim()
-    && document.getElementById("state").value.trim();
-  document.getElementById("runBtn").disabled = !ready;
-
-  const previewReady = state.contactsWorkbook
-    && state.pdfFiles.length > 0
-    && document.getElementById("emailTemplate").value.trim()
-    && document.getElementById("client").value.trim()
-    && document.getElementById("state").value.trim();
-  document.getElementById("previewBtn").disabled = !previewReady;
+function batchesReady() {
+  return state.batches.length > 0
+    && state.batches.every(b => b.client && b.gender && b.stateCode && b.files.length);
 }
 
-["emailSubject", "emailTemplate", "client", "state", "gender"].forEach(id => {
+function validateRunButton() {
+  const base = state.contactsSrc
+    && batchesReady()
+    && document.getElementById("emailTemplate").value.trim();
+  document.getElementById("previewBtn").disabled = !base;
+  document.getElementById("runBtn").disabled = !(base && state.accessToken);
+}
+
+["emailSubject", "emailTemplate"].forEach(id => {
   document.getElementById(id).addEventListener("input", () => {
     validateRunButton();
     SAVED.save(id, document.getElementById(id).value);
   });
+});
+
+document.getElementById("googleOnly").addEventListener("change", e => {
+  SAVED.save("googleOnly", e.target.checked);
 });
 
 document.getElementById("clientId").addEventListener("input", e => {
@@ -1173,9 +1937,10 @@ async function getFirstSheetMeta(spreadsheetId) {
   return { firstSheetId: first.properties.sheetId, firstSheetTitle: first.properties.title };
 }
 
+// Provider is appended at the end so existing sheets keep their column meanings.
 const SHEET_HEADERS = [
   "Date Created", "Coach Name", "Email", "School",
-  "Client", "Gender", "State", "Subject", "Status", "Draft ID"
+  "Client", "Gender", "State", "Subject", "Status", "Draft ID", "Provider"
 ];
 
 // Read existing emails (column C, skipping header). Returns lowercase Set.
@@ -1188,7 +1953,7 @@ async function fetchExistingEmails(spreadsheetId, sheetTitle) {
 
 // Make sure row 1 has headers; if the sheet is empty, write them.
 async function ensureHeaders(spreadsheetId, sheetTitle) {
-  const range = encodeURIComponent(`${sheetTitle}!A1:J1`);
+  const range = encodeURIComponent(`${sheetTitle}!A1:K1`);
   const data = await sheetsApi(`${spreadsheetId}/values/${range}`);
   const existing = (data.values && data.values[0]) || [];
   if (existing.length >= SHEET_HEADERS.length) return; // already set up
@@ -1200,12 +1965,12 @@ async function ensureHeaders(spreadsheetId, sheetTitle) {
 
 // Append rows; returns the starting row index (1-based) of the appended block.
 async function appendRows(spreadsheetId, sheetTitle, rows) {
-  const range = encodeURIComponent(`${sheetTitle}!A:J`);
+  const range = encodeURIComponent(`${sheetTitle}!A:K`);
   const res = await sheetsApi(
     `${spreadsheetId}/values/${range}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
     { method: "POST", body: JSON.stringify({ values: rows }) }
   );
-  // updatedRange like "Sheet1!A42:J45" — parse the starting row
+  // updatedRange like "Sheet1!A42:K45" — parse the starting row
   const updated = res.updates && res.updates.updatedRange;
   const rowMatch = updated && updated.match(/![A-Z]+(\d+):/);
   return rowMatch ? parseInt(rowMatch[1], 10) : null;
@@ -1287,36 +2052,120 @@ async function addLabelToMessage(messageId, labelId) {
 }
 
 // ─────────────────────────────────────────────
+// PLANNING — shared by Preview and Create Drafts
+// ─────────────────────────────────────────────
+// Work out what would happen for one folder, without touching Gmail. Preview
+// renders the result; the runner executes it, so the two can't drift apart.
+function buildPlanForBatch(batch, { subjectTpl, template, googleOnly }) {
+  const { contacts, diagnostics } = buildContactsMap(batch.stateCode, batch.gender);
+  const items = [];
+
+  for (const pdf of batch.files) {
+    const opponent = extractOpponent(pdf.name);
+    const normOpp = normalizeSchoolName(opponent);
+    const item = { pdf, opponent, normOpp, batch };
+
+    if (diagnostics.error) {
+      item.status = "error";
+      item.reason = diagnostics.error;
+      items.push(item);
+      continue;
+    }
+
+    const result = findCoaches(contacts, normOpp);
+    if (result.ambiguous) {
+      item.status = "ambiguous";
+      item.reason = `Ambiguous — matches ${result.ambiguous.join(", ")}`;
+      items.push(item);
+      continue;
+    }
+    if (!result.coaches) {
+      item.status = "no-match";
+      item.reason = diagnoseMiss(contacts, normOpp) || "No coach match";
+      items.push(item);
+      continue;
+    }
+
+    item.matchedKey = result.matchedKey;
+    item.fuzzy = !result.exact;
+    item.allCoaches = result.coaches;
+
+    // Provider filter runs after matching, so a school with only Microsoft
+    // coaches is reported as "non-Google" instead of "no match".
+    const eligible = googleOnly ? result.coaches.filter(c => c.isGoogle) : result.coaches;
+    if (!eligible.length) {
+      item.status = "non-google";
+      const providers = [...new Set(result.coaches.map(c => c.provider))].join(", ");
+      item.reason = `No Google-hosted coach (${providers})`;
+      items.push(item);
+      continue;
+    }
+
+    const toEmails = eligible.map(c => c.email).filter(Boolean);
+    if (!toEmails.length) {
+      item.status = "no-email";
+      item.reason = "Coaches found but no email address";
+      items.push(item);
+      continue;
+    }
+
+    const { subject, body } = fillTemplate(
+      subjectTpl, template, eligible, opponent, batch.client, batch.gender, batch.stateCode
+    );
+    item.status = "ok";
+    item.coaches = eligible;
+    item.toEmails = toEmails;
+    item.subject = subject;
+    item.body = body;
+    item.filtered = result.coaches.length - eligible.length;
+    items.push(item);
+  }
+
+  return { items, contacts, diagnostics };
+}
+
+// ─────────────────────────────────────────────
+// PROGRESS
+// ─────────────────────────────────────────────
+function setProgress(done, total, label) {
+  const wrap = document.getElementById("progressWrap");
+  wrap.classList.add("on");
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  document.getElementById("progressFill").style.width = `${pct}%`;
+  document.getElementById("progressText").textContent = `${done} / ${total} — ${label}`;
+}
+function hideProgress() {
+  document.getElementById("progressWrap").classList.remove("on");
+}
+
+document.getElementById("stopBtn").addEventListener("click", () => {
+  state.abortRun = true;
+  log("🛑 Stop requested — finishing the current draft, then halting.", "warning");
+});
+
+// ─────────────────────────────────────────────
 // MAIN RUN
 // ─────────────────────────────────────────────
 document.getElementById("runBtn").addEventListener("click", async () => {
   const subjectTpl = document.getElementById("emailSubject").value;
   const template = document.getElementById("emailTemplate").value;
-  const client = document.getElementById("client").value.trim();
-  const gender = document.getElementById("gender").value;
-  const statePart = document.getElementById("state").value.trim();
+  const googleOnly = document.getElementById("googleOnly").checked;
 
   clearLog();
+  state.abortRun = false;
   log("🏀 FCA Email Automation Starting...", "info");
+  log(`📁 ${state.batches.length} folder(s) · ${state.batches.reduce((n, b) => n + b.files.length, 0)} report(s)`, "info");
+  log(googleOnly ? "🔒 Google-hosted inboxes only." : "📬 All providers included.", "info");
   log("", "dim");
-  log(`📁 Client: ${client} | ${gender} | ${statePart}`, "info");
-
-  const contacts = loadContactsFromWorkbook(state.contactsWorkbook, statePart, gender);
-  if (!Object.keys(contacts).length) {
-    log("⚠️  No contacts loaded — aborting.", "error");
-    return;
-  }
 
   // Pre-fetch existing emails from the tracking sheet so we can flag duplicates inline.
   const sheetId = parseSheetId(document.getElementById("trackingSheetId").value);
   let priorEmails = new Set();
-  let sheetTitleForRun = null;
   if (sheetId) {
     try {
       const meta = await getFirstSheetMeta(sheetId);
-      sheetTitleForRun = meta.firstSheetTitle;
-      await ensureHeaders(sheetId, sheetTitleForRun);
-      priorEmails = await fetchExistingEmails(sheetId, sheetTitleForRun);
+      await ensureHeaders(sheetId, meta.firstSheetTitle);
+      priorEmails = await fetchExistingEmails(sheetId, meta.firstSheetTitle);
       log(`📒 Tracking sheet loaded: ${priorEmails.size} prior coach email(s) on file.`, "dim");
     } catch (e) {
       log(`⚠️  Could not read tracking sheet (continuing without dup check): ${e.message}`, "warning");
@@ -1326,83 +2175,108 @@ document.getElementById("runBtn").addEventListener("click", async () => {
   }
 
   let drafted = 0;
+  let processed = 0;
+  const totalFiles = state.batches.reduce((n, b) => n + b.files.length, 0);
   const skipped = [];
-  const seenThisRun = new Set();           // emails seen earlier in THIS run
+  const nonGoogle = [];
+  const seenThisRun = new Set();   // emails seen earlier in THIS run, across all folders
   const newQueueEntries = [];
+  const today = new Date().toISOString().slice(0, 10);
 
   document.getElementById("runBtn").disabled = true;
+  document.getElementById("previewBtn").disabled = true;
+  document.getElementById("stopBtn").style.display = "inline-block";
+  setProgress(0, totalFiles, "starting");
 
-  for (const pdf of state.pdfFiles) {
-    const opponent = extractOpponent(pdf.name);
-    const normOpp = normalizeSchoolName(opponent);
-    const result = findCoaches(contacts, normOpp);
+  outer:
+  for (const batch of state.batches) {
+    log("", "dim");
+    log(`▶ ${batch.folder} — ${batch.client} | ${batch.gender} | ${batch.stateCode}`, "info");
 
-    if (result.ambiguous) {
-      log(`❌ Ambiguous match for '${opponent}' — multiple schools: ${result.ambiguous.join(", ")}`, "error");
-      skipped.push({ file: pdf.name, reason: `Ambiguous (${result.ambiguous.length} matches)` });
+    const { items, diagnostics } = buildPlanForBatch(batch, { subjectTpl, template, googleOnly });
+    if (diagnostics.error) {
+      let extra = "";
+      if (diagnostics.availableStates) extra = ` States in this file: ${diagnostics.availableStates.join(", ")}`;
+      else if (diagnostics.availableTabs) extra = ` Available tabs: ${diagnostics.availableTabs.join(", ")}`;
+      log(`   ⚠️  ${diagnostics.error}.${extra} Skipping this folder.`, "error");
+      batch.files.forEach(f => skipped.push({ folder: batch.folder, file: f.name, reason: diagnostics.error }));
+      processed += batch.files.length;
+      setProgress(processed, totalFiles, batch.folder);
       continue;
     }
-    if (!result.coaches) {
-      const hint = diagnoseMiss(contacts, normOpp);
-      log(`❌ No match for: '${opponent}' (normalized: '${normOpp}')${hint ? " — " + hint : ""}`, "error");
-      skipped.push({ file: pdf.name, reason: hint || "No coach match" });
-      continue;
-    }
-    const coaches = result.coaches;
-    if (!result.exact) {
-      log(`   ↳ Fuzzy match: '${normOpp}' → '${result.matchedKey}'`, "dim");
-    }
+    loadContactsFor(batch.stateCode, batch.gender);
 
-    const toEmails = coaches.map(c => c.email).filter(Boolean);
-    if (!toEmails.length) {
-      log(`❌ Coaches found for '${opponent}' but no emails.`, "error");
-      skipped.push({ file: pdf.name, reason: "No email" });
-      continue;
-    }
+    for (const item of items) {
+      if (state.abortRun) break outer;
+      processed++;
+      setProgress(processed, totalFiles, `${batch.folder} — ${item.opponent}`);
 
-    const { subject, body } = fillTemplate(subjectTpl, template, coaches, opponent, client, gender, statePart);
-
-    try {
-      const draftResp = await createDraft(toEmails, subject, body, pdf);
-      const coachNames = coaches.map(c => c.name).join(", ");
-      log(`✅ Draft created → ${opponent} | To: ${toEmails.join(", ")} (${coachNames})`, "success");
-      drafted++;
-
-      // Duplicate = any recipient email already exists in the sheet OR was used earlier in this run.
-      const lowerEmails = toEmails.map(e => e.toLowerCase());
-      const isDuplicate = lowerEmails.some(e => priorEmails.has(e) || seenThisRun.has(e));
-      lowerEmails.forEach(e => seenThisRun.add(e));
-
-      const draftId = draftResp.id;
-      const messageId = draftResp.message && draftResp.message.id;
-
-      if (isDuplicate && messageId) {
-        try {
-          const labelId = await ensureSendLaterLabel();
-          await addLabelToMessage(messageId, labelId);
-          log(`   ⚠️  Duplicate coach — tagged "${SEND_LATER_LABEL}" in Gmail.`, "warning");
-        } catch (e) {
-          log(`   ⚠️  Could not tag draft as "${SEND_LATER_LABEL}": ${e.message}`, "warning");
-        }
-      }
-
-      // One queue entry per coach — keeps the sheet one-row-per-coach.
-      const today = new Date().toISOString().slice(0, 10);
-      coaches.forEach(c => {
-        newQueueEntries.push({
-          dateCreated: today,
-          coachName: c.name || "",
-          email: (c.email || "").trim(),
-          school: opponent,
-          client, gender, state: statePart,
-          subject,
-          isDuplicate,
-          draftId
+      if (item.status === "non-google") {
+        log(`   ⏭️  ${item.opponent} — ${item.reason}`, "warning");
+        nonGoogle.push({
+          folder: batch.folder, file: item.pdf.name, opponent: item.opponent,
+          coaches: (item.allCoaches || []).map(c => `${c.name} <${c.email}> [${c.provider}]`).join("; ")
         });
-      });
-    } catch (e) {
-      log(`❌ Draft failed for ${opponent}: ${e.message}`, "error");
-      skipped.push({ file: pdf.name, reason: e.message });
+        continue;
+      }
+      if (item.status !== "ok") {
+        log(`   ❌ ${item.opponent} — ${item.reason}`, "error");
+        skipped.push({ folder: batch.folder, file: item.pdf.name, reason: item.reason });
+        continue;
+      }
+      if (item.fuzzy) log(`   ↳ Fuzzy match: '${item.normOpp}' → '${item.matchedKey}'`, "dim");
+
+      try {
+        await ensureFreshToken();
+        const draftResp = await withRetry(
+          () => createDraft(item.toEmails, item.subject, item.body, item.pdf),
+          { label: `draft for ${item.opponent}` }
+        );
+
+        const filteredNote = item.filtered ? ` (${item.filtered} non-Google recipient(s) dropped)` : "";
+        log(`   ✅ ${item.opponent} → ${item.toEmails.join(", ")}${filteredNote}`, "success");
+        drafted++;
+
+        // Duplicate = any recipient already in the sheet OR already drafted this run.
+        const lowerEmails = item.toEmails.map(e => e.toLowerCase());
+        const isDuplicate = lowerEmails.some(e => priorEmails.has(e) || seenThisRun.has(e));
+        lowerEmails.forEach(e => seenThisRun.add(e));
+
+        const draftId = draftResp.id;
+        const messageId = draftResp.message && draftResp.message.id;
+
+        if (isDuplicate && messageId) {
+          try {
+            const labelId = await withRetry(() => ensureSendLaterLabel(), { label: "label lookup" });
+            await withRetry(() => addLabelToMessage(messageId, labelId), { label: "label apply" });
+            log(`      ⚠️  Duplicate coach — tagged "${SEND_LATER_LABEL}".`, "warning");
+          } catch (e) {
+            log(`      ⚠️  Could not tag as "${SEND_LATER_LABEL}": ${e.message}`, "warning");
+          }
+        }
+
+        // One queue entry per coach — keeps the sheet one-row-per-coach.
+        item.coaches.forEach(c => {
+          newQueueEntries.push({
+            dateCreated: today,
+            coachName: c.name || "",
+            email: (c.email || "").trim(),
+            school: item.opponent,
+            client: batch.client,
+            gender: batch.gender,
+            state: batch.stateCode,
+            subject: item.subject,
+            provider: c.provider || "",
+            isDuplicate,
+            draftId
+          });
+        });
+
+        if (DRAFT_DELAY_MS) await sleep(DRAFT_DELAY_MS);
+      } catch (e) {
+        log(`   ❌ Draft failed for ${item.opponent}: ${e.message}`, "error");
+        skipped.push({ folder: batch.folder, file: item.pdf.name, reason: e.message });
+      }
     }
   }
 
@@ -1411,16 +2285,27 @@ document.getElementById("runBtn").addEventListener("click", async () => {
 
   log("", "dim");
   log("─".repeat(50), "dim");
-  log(`✅ Done! ${drafted} draft(s) created in Gmail.`, "success");
+  if (state.abortRun) log(`🛑 Stopped early at ${processed}/${totalFiles}.`, "warning");
+  log(`✅ ${drafted} draft(s) created in Gmail.`, "success");
   if (newQueueEntries.length) {
-    log(`📒 ${newQueueEntries.length} row(s) queued for the tracking sheet — click Step 7 to sync.`, "info");
+    log(`📒 ${newQueueEntries.length} row(s) queued for the tracking sheet — Step 7 to sync.`, "info");
+  }
+  if (nonGoogle.length) {
+    log("", "dim");
+    log(`🔒 ${nonGoogle.length} report(s) skipped — no Google-hosted coach:`, "warning");
+    nonGoogle.forEach(s => log(`   • [${s.folder}] ${s.opponent} — ${s.coaches}`, "warning"));
+    log(`   Copy this list if you want to reach them another way.`, "dim");
   }
   if (skipped.length) {
-    log(`⚠️  ${skipped.length} report(s) skipped:`, "warning");
-    skipped.forEach(s => log(`   • ${s.file} — ${s.reason}`, "warning"));
+    log("", "dim");
+    log(`⚠️  ${skipped.length} report(s) skipped for other reasons:`, "warning");
+    skipped.forEach(s => log(`   • [${s.folder}] ${s.file} — ${s.reason}`, "warning"));
   }
   log("─".repeat(50), "dim");
 
+  document.getElementById("stopBtn").style.display = "none";
+  hideProgress();
+  state.abortRun = false;
   validateRunButton();
   updateSyncUI();
 });
@@ -1474,7 +2359,8 @@ document.getElementById("syncBtn").addEventListener("click", async () => {
         entry.state,
         entry.subject,
         isDup ? "Send Later (duplicate)" : "New",
-        entry.draftId || ""
+        entry.draftId || "",
+        entry.provider || ""
       ];
     });
 
@@ -1504,71 +2390,91 @@ document.getElementById("syncBtn").addEventListener("click", async () => {
 document.getElementById("previewBtn").addEventListener("click", () => {
   const subjectTpl = document.getElementById("emailSubject").value;
   const template = document.getElementById("emailTemplate").value;
-  const client = document.getElementById("client").value.trim();
-  const gender = document.getElementById("gender").value;
-  const statePart = document.getElementById("state").value.trim();
+  const googleOnly = document.getElementById("googleOnly").checked;
 
   const previewArea = document.getElementById("previewArea");
   previewArea.innerHTML = "";
 
-  // Use the same smart loader as Create Drafts (silent — no log spam).
-  const { contacts, diagnostics: d } = buildContactsMap(state.contactsWorkbook, statePart, gender);
-  if (d.error) {
-    const extra = d.availableTabs ? ` Available: ${d.availableTabs.join(", ")}` : (d.headers ? ` Headers: ${d.headers.join(" | ")}` : "");
-    previewArea.innerHTML = `<div class="preview-card error"><div class="pv-error">⚠️ ${d.error}.${extra}</div></div>`;
-    return;
-  }
+  let totalOk = 0, totalBlocked = 0, totalNonGoogle = 0;
+  const groups = [];
 
-  let matched = 0;
-  let unmatched = 0;
-  const cards = [];
+  for (const batch of state.batches) {
+    const { items, diagnostics } = buildPlanForBatch(batch, { subjectTpl, template, googleOnly });
 
-  for (const pdf of state.pdfFiles) {
-    const opponent = extractOpponent(pdf.name);
-    const normOpp = normalizeSchoolName(opponent);
-    const result = findCoaches(contacts, normOpp);
-    const coaches = result.coaches;
+    const group = document.createElement("details");
+    group.className = "folder-group";
+    const body = document.createElement("div");
+    body.className = "fg-body";
 
-    const card = document.createElement("div");
-
-    if (result.ambiguous) {
-      unmatched++;
-      card.className = "preview-card error";
-      card.innerHTML = `
-        <div class="pv-meta">📄 ${pdf.name}</div>
-        <div class="pv-error">❌ Ambiguous match for '${opponent}' — multiple schools: ${result.ambiguous.join(", ")}</div>
-      `;
-    } else if (!coaches) {
-      unmatched++;
-      card.className = "preview-card error";
-      card.innerHTML = `
-        <div class="pv-meta">📄 ${pdf.name}</div>
-        <div class="pv-error">❌ No match for opponent '${opponent}' (normalized: '${normOpp}')</div>
-      `;
-    } else {
-      matched++;
-      const toEmails = coaches.map(c => c.email).filter(Boolean);
-      const { subject, body } = fillTemplate(subjectTpl, template, coaches, opponent, client, gender, statePart);
-      const htmlBody = body.replace(/\n/g, "<br>") +
-        `<br><br>--<br><img src="https://i.imgur.com/hkzQgT7.png" alt="Joshua Kelly, CEO - Full Court Analytics" style="max-width:500px;">`;
-
-      const coachNames = coaches.map(c => c.name).join(", ");
-      card.className = "preview-card ok";
-      card.innerHTML = `
-        <div class="pv-meta">📄 ${pdf.name} → ${opponent}</div>
-        <div class="pv-to"><strong>To:</strong> ${toEmails.join(", ")} (${coachNames})</div>
-        <div class="pv-subject">${escapeHtml(subject)}</div>
-        <div class="pv-body">${htmlBody}</div>
-      `;
+    if (diagnostics.error) {
+      let extra = "";
+      if (diagnostics.availableStates) extra = ` States in this file: ${diagnostics.availableStates.join(", ")}`;
+      else if (diagnostics.availableTabs) extra = ` Available tabs: ${diagnostics.availableTabs.join(", ")}`;
+      totalBlocked += batch.files.length;
+      group.innerHTML = `<summary>📁 ${escapeHtml(batch.folder)}
+        <span class="fg-stats">⚠️ ${escapeHtml(diagnostics.error)}</span></summary>`;
+      body.innerHTML = `<div class="preview-card error"><div class="pv-error">⚠️ ${escapeHtml(diagnostics.error)}.${escapeHtml(extra)}</div></div>`;
+      group.appendChild(body);
+      previewArea.appendChild(group);
+      continue;
     }
-    cards.push(card);
+
+    let ok = 0, blocked = 0, nong = 0;
+
+    for (const item of items) {
+      const card = document.createElement("div");
+
+      if (item.status === "ok") {
+        ok++;
+        const htmlBody = item.body.replace(/\n/g, "<br>") +
+          `<br><br>--<br><img src="https://i.imgur.com/hkzQgT7.png" alt="Joshua Kelly, CEO - Full Court Analytics" style="max-width:500px;">`;
+        const coachNames = item.coaches.map(c => `${c.name} [${c.provider}]`).join(", ");
+        const filteredNote = item.filtered
+          ? `<div class="pv-warn">🔒 ${item.filtered} non-Google recipient(s) dropped from this draft</div>` : "";
+        card.className = "preview-card ok";
+        card.innerHTML = `
+          <div class="pv-meta">📄 ${escapeHtml(item.pdf.name)} → ${escapeHtml(item.opponent)}${item.fuzzy ? " (fuzzy match)" : ""}</div>
+          <div class="pv-to"><strong>To:</strong> ${escapeHtml(item.toEmails.join(", "))} (${escapeHtml(coachNames)})</div>
+          ${filteredNote}
+          <div class="pv-subject">${escapeHtml(item.subject)}</div>
+          <div class="pv-body">${htmlBody}</div>
+        `;
+      } else if (item.status === "non-google") {
+        nong++;
+        const detail = (item.allCoaches || [])
+          .map(c => `${c.name} &lt;${escapeHtml(c.email)}&gt; [${escapeHtml(c.provider)}]`).join("<br>");
+        card.className = "preview-card warn";
+        card.innerHTML = `
+          <div class="pv-meta">📄 ${escapeHtml(item.pdf.name)} → ${escapeHtml(item.opponent)}</div>
+          <div class="pv-warn">🔒 ${escapeHtml(item.reason)}</div>
+          <div class="pv-to" style="margin-top:6px;">${detail}</div>
+        `;
+      } else {
+        blocked++;
+        card.className = "preview-card error";
+        card.innerHTML = `
+          <div class="pv-meta">📄 ${escapeHtml(item.pdf.name)}</div>
+          <div class="pv-error">❌ ${escapeHtml(item.opponent)} — ${escapeHtml(item.reason)}</div>
+        `;
+      }
+      body.appendChild(card);
+    }
+
+    totalOk += ok; totalBlocked += blocked; totalNonGoogle += nong;
+
+    group.innerHTML = `<summary>📁 ${escapeHtml(batch.folder)}
+      <span class="fg-stats">${escapeHtml(batch.client)} · ${escapeHtml(batch.gender)} · ${escapeHtml(batch.stateCode)}
+      — ${ok} ready${nong ? ` · ${nong} non-Google` : ""}${blocked ? ` · ${blocked} skipped` : ""}</span></summary>`;
+    group.appendChild(body);
+    if (ok === 0 || nong || blocked) group.open = true;
+    previewArea.appendChild(group);
   }
 
   const summary = document.createElement("div");
   summary.className = "preview-summary";
-  summary.innerHTML = `<strong>Preview:</strong> ${matched} draft(s) ready to send · ${unmatched} skipped`;
-  previewArea.appendChild(summary);
-  cards.forEach(c => previewArea.appendChild(c));
+  summary.innerHTML = `<strong>Preview:</strong> ${totalOk} draft(s) ready · ${totalNonGoogle} non-Google · ${totalBlocked} skipped
+    <span style="color:var(--text-dim);"> across ${state.batches.length} folder(s)</span>`;
+  previewArea.insertBefore(summary, previewArea.firstChild);
 });
 
 function escapeHtml(s) {
@@ -1595,9 +2501,13 @@ document.querySelectorAll("nav button").forEach(btn => {
 // ─────────────────────────────────────────────
 window.addEventListener("DOMContentLoaded", () => {
   const saved = SAVED.load();
-  ["clientId", "trackingSheetId", "emailSubject", "emailTemplate", "client", "state", "gender"].forEach(id => {
+  ["clientId", "trackingSheetId", "emailSubject", "emailTemplate"].forEach(id => {
     if (saved[id]) document.getElementById(id).value = saved[id];
   });
+  if (typeof saved.googleOnly === "boolean") {
+    document.getElementById("googleOnly").checked = saved.googleOnly;
+  }
+  renderBatchTable();
   validateRunButton();
   updateSyncUI();
 });
