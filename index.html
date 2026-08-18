@@ -583,12 +583,12 @@
         <div class="step-number">3</div>
         <div class="step-title">Contacts File</div>
       </div>
-      <p class="step-desc">Upload your master Excel file. Works with the all-states format (one sheet with <code>State</code>, <code>Position</code>, <code>School Name</code>, <code>Email</code>, <code>Rank</code>, <code>Email Provider</code> columns) or the older one-tab-per-state format.</p>
+      <p class="step-desc">Upload the master contacts CSV or Excel file. Preferred columns: <code>First Name</code>, <code>Last Name</code>, <code>Email</code>, <code>School Name</code>, <code>State</code>, <code>Program</code>, <code>Coach Level</code>, <code>Email Provider</code>. Older one-tab-per-state Excel files still work.</p>
       <div class="drop-zone" id="contactsDrop">
         <div class="icon">📊</div>
-        <p><strong>Click or drop</strong> your contacts .xlsx file here</p>
+        <p><strong>Click or drop</strong> your contacts .csv, .xlsx or .xls file here</p>
       </div>
-      <input type="file" id="contactsInput" accept=".xlsx,.xls" hidden>
+      <input type="file" id="contactsInput" accept=".csv,.xlsx,.xls" hidden>
       <div class="file-list" id="contactsList"></div>
     </div>
 
@@ -799,7 +799,7 @@ function normalizeSchoolName(name) {
 }
 
 // ─────────────────────────────────────────────
-// CONTACTS LOADING (from .xlsx)
+// CONTACTS LOADING (from .csv / .xlsx)
 // ─────────────────────────────────────────────
 // Find a header by trying aliases in order. Earlier aliases win, which matters:
 // the all-states sheet has both "School Name" (the name) and "Schools" (a URL).
@@ -849,8 +849,8 @@ function parseContactsWorkbook(workbook) {
       first:    findCol("First Name", "first", "firstname", "first_name"),
       last:     findCol("Last Name", "last", "lastname", "last_name"),
       name:     findCol("Coach Name", "Coach", "Name", "Full Name", "coach_name"),
-      rank:     findCol("Rank", "title", "level"),
-      position: findCol("Position", "sport", "team type"),
+      rank:     findCol("Coach Level", "Rank", "title", "level"),
+      position: findCol("Program", "Position", "Gender", "sport", "team type"),
       provider: findCol("Email Provider", "Provider", "mx provider")
     };
     if (!cols.school) continue;
@@ -924,7 +924,7 @@ function buildFromFlat(src, statePart, gender) {
     if (toStateCode(row[c.state]) !== wantState) continue;
     diag.inState++;
 
-    // Gender now lives in Position ("Boys Basketball", "Girls Basketball Jv Coach", …).
+    // Gender now lives in Program/Position ("Boys", "Girls", "Boys Basketball", ...).
     if (c.position && wantGender) {
       const pos = String(row[c.position] || "").toLowerCase();
       if (!pos.startsWith(wantGender)) continue;
@@ -996,7 +996,7 @@ function buildFromLegacyTab(src, statePart, gender) {
     last:   findCol("Last Name", "last", "lastname", "last_name"),
     name:   findCol("Coach Name", "Coach", "Name", "Full Name", "coach_name"),
     email:  findCol("Email", "email address", "e-mail"),
-    rank:   findCol("Rank", "title", "level", "Position"),
+    rank:   findCol("Coach Level", "Rank", "title", "level", "Position"),
     provider: findCol("Email Provider", "Provider")
   };
   diag.columns = c;
@@ -1528,15 +1528,17 @@ setupDropZone(
     if (!files.length) return;
     const file = files[0];
     try {
-      const buf = await file.arrayBuffer();
-      state.contactsWorkbook = XLSX.read(buf, { type: "array" });
+      const isCsv = /\.csv$/i.test(file.name);
+      state.contactsWorkbook = isCsv
+        ? XLSX.read(await file.text(), { type: "string" })
+        : XLSX.read(await file.arrayBuffer(), { type: "array" });
       state.contactsFileName = file.name;
       state.contactsSrc = parseContactsWorkbook(state.contactsWorkbook);
       state.contactsCache.clear();
 
       const src = state.contactsSrc;
       if (src.format === "flat") {
-        log(`✅ Loaded ${file.name} — all-states format, ${src.rows.length} contacts across ${src.stateCodes.length} states (${src.stateCodes.join(", ")})`, "success");
+        log(`✅ Loaded ${file.name} — master contacts format, ${src.rows.length} contacts across ${src.stateCodes.length} states (${src.stateCodes.join(", ")})`, "success");
         if (!src.hasProvider) {
           log(`⚠️  No "Email Provider" column — the Google-only filter will pass everyone through.`, "warning");
         }
