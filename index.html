@@ -798,6 +798,46 @@ function normalizeSchoolName(name) {
   return n.replace(/\s+/g, " ").trim();
 }
 
+function trimTrailingSchoolDescriptors(normName) {
+  const words = String(normName || "").split(" ").filter(Boolean);
+  while (words.length) {
+    const tail = words[words.length - 1];
+    const pair = words.slice(-2).join(" ");
+    if (pair === "h s" || pair === "jr high" || pair === "junior high") {
+      words.splice(words.length - 2, 2);
+    } else if (["high", "middle", "secondary", "jr", "junior"].includes(tail)) {
+      words.pop();
+    } else {
+      break;
+    }
+  }
+  return words.join(" ");
+}
+
+function schoolKeyVariants(normName) {
+  const variants = [String(normName || "").trim()].filter(Boolean);
+  const trimmed = trimTrailingSchoolDescriptors(variants[0]);
+  if (trimmed && trimmed !== variants[0]) variants.push(trimmed);
+  return [...new Set(variants)];
+}
+
+function wordsStartWith(words, prefix) {
+  return prefix.length > 0 && prefix.every((w, i) => words[i] === w);
+}
+
+function schoolKeysRelated(a, b) {
+  const aVariants = schoolKeyVariants(a);
+  const bVariants = schoolKeyVariants(b);
+  for (const av of aVariants) {
+    const aw = av.split(" ").filter(Boolean);
+    for (const bv of bVariants) {
+      const bw = bv.split(" ").filter(Boolean);
+      if (av === bv || wordsStartWith(aw, bw) || wordsStartWith(bw, aw)) return true;
+    }
+  }
+  return false;
+}
+
 // ─────────────────────────────────────────────
 // CONTACTS LOADING (from .csv / .xlsx)
 // ─────────────────────────────────────────────
@@ -1071,16 +1111,17 @@ function loadContactsFor(statePart, gender) {
 
 // Try exact match first, then fall back to prefix / word-subset match
 function findCoaches(contacts, normOpp) {
-  if (contacts[normOpp]) return { coaches: contacts[normOpp], matchedKey: normOpp, exact: true };
+  for (const exactKey of schoolKeyVariants(normOpp)) {
+    if (contacts[exactKey]) return { coaches: contacts[exactKey], matchedKey: exactKey, exact: exactKey === normOpp };
+  }
 
-  const oppWords = normOpp.split(" ").filter(Boolean);
   const candidates = [];
   const keys = Object.keys(contacts).filter(k => k !== "__allPool");
 
   for (const key of keys) {
-    const keyWords = key.split(" ").filter(Boolean);
-    // Match if school name STARTS with the opponent's words (whole-word prefix)
-    if (oppWords.every((w, i) => keyWords[i] === w)) {
+    // Whole-word fuzzy match in either direction:
+    // "Drummond" ↔ "Drummond High School", "Drummond High" ↔ "Drummond".
+    if (schoolKeysRelated(key, normOpp)) {
       candidates.push(key);
     }
   }
@@ -1098,14 +1139,10 @@ function findCoaches(contacts, normOpp) {
 function diagnoseMiss(contacts, normOpp) {
   const allPool = contacts.__allPool || {};
   const allKeys = Object.keys(allPool);
-  if (allPool[normOpp]) {
-    return `school exists in sheet but coach has no "Head" rank`;
+  for (const exactKey of schoolKeyVariants(normOpp)) {
+    if (allPool[exactKey]) return `school exists in sheet but coach has no "Head" rank`;
   }
-  const oppWords = normOpp.split(" ").filter(Boolean);
-  const partials = allKeys.filter(k => {
-    const kw = k.split(" ").filter(Boolean);
-    return oppWords.every((w, i) => kw[i] === w);
-  });
+  const partials = allKeys.filter(k => schoolKeysRelated(k, normOpp));
   if (partials.length) {
     return `similar school(s) in sheet (no Head rank): ${partials.slice(0, 3).join(" | ")}`;
   }
@@ -1172,11 +1209,16 @@ function stripReportSuffix(filename) {
   return name.trim();
 }
 
+function splitMatchupName(name) {
+  return String(name || "").split(/\s+(?:v|vs\.?)\s+/i);
+}
+
 function extractOpponent(filename) {
   const name = stripReportSuffix(filename);
-  if (name.includes(" vs ")) {
+  const parts = splitMatchupName(name);
+  if (parts.length > 1) {
     // Opponent is the part AFTER "vs" (e.g. "Caston vs Argos" → "Argos")
-    return name.split(" vs ").slice(1).join(" vs ").trim();
+    return parts.slice(1).join(" vs ").trim();
   }
   return name;
 }
@@ -1184,7 +1226,8 @@ function extractOpponent(filename) {
 // The client is the left side of "vs" — constant across a team's folder.
 function extractClientSide(filename) {
   const name = stripReportSuffix(filename);
-  if (name.includes(" vs ")) return name.split(" vs ")[0].trim();
+  const parts = splitMatchupName(name);
+  if (parts.length > 1) return parts[0].trim();
   return "";
 }
 
